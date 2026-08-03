@@ -79,6 +79,17 @@ class ProductNormalizationServiceTest {
     }
 
     @Test
+    void shouldTreatNullSellerNameAsEmptyString() {
+        assertThat(productNormalizationService.normalizeSellerName(null)).isEmpty();
+    }
+
+    @Test
+    void shouldNormalizeSellerNameToUpperCase() {
+        assertThat(productNormalizationService.normalizeSellerName("  MegaStore  "))
+                .isEqualTo("MEGASTORE");
+    }
+
+    @Test
     void shouldProduceSameNormalizedPairForDifferentCategories() {
         String name = "MacBook Air  M2";
         String brand = "Apple";

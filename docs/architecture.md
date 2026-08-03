@@ -34,17 +34,21 @@ Duplicate detection uses two columns on `Product`:
 
 A unique index on `(NormalizedProductName, NormalizedBrand)` supports `INSERT ... ON CONFLICT DO NOTHING`.
 
+### `Seller` schema
+
+`Seller` stores the canonical seller identity:
+
+- `Name` — original seller name from the feed (first-wins on insert)
+- `NormalizedName` — uppercase key used for matching (`UNIQUE`)
+
 ### `SellerProduct` schema
 
-`SellerProduct` is recreated with seller snapshot columns:
+`SellerProduct` is recreated with a foreign key to `Seller` and seller snapshot columns:
 
+- `SellerId` — FK to `Seller(Id)`
 - `SellerProductName`, `SellerBrand`, `SellerCategory` — original seller values
 - `SellerProductId` — seller UUID from the feed (`TEXT`)
-- `UNIQUE(SellerName, SellerProductId)` — idempotent reprocessing
-
-### No dedicated `Seller` table
-
-`SellerName` remains a text field on `SellerProduct`. A normalized `Seller` entity is deferred as future work.
+- `UNIQUE(SellerId, SellerProductId)` — idempotent reprocessing
 
 ### Migration idempotency
 
@@ -57,7 +61,7 @@ Migration idempotency is detected by the presence of the `Availability` column o
 ```
 domain/             → entities, business rules (ProductNormalizationService, ProductInsertionService)
                        and the persistence contracts it depends on
-                       (ProductRepository, SellerProductRepository)
+                       (ProductRepository, SellerRepository, SellerProductRepository)
 infrastructure/      → implements domain repository interfaces (JDBC), JSON reader + DTO + factory,
                        SchemaMigration
 application/         → Application (composition root, CLI) creates all dependencies and hands them
@@ -69,7 +73,7 @@ Dependency direction: `application` knows both `domain` and `infrastructure` and
 classes together directly (no interface for the use case itself). `infrastructure` knows `domain`
 and implements its repository interfaces. `domain` knows only itself — it never imports
 `application` or `infrastructure`. The only inversion of dependency kept is the repository
-contracts (`ProductRepository`, `SellerProductRepository`), because `ProductInsertionService`
+contracts (`ProductRepository`, `SellerRepository`, `SellerProductRepository`), because `ProductInsertionService`
 (a domain service) needs to persist without depending on a concrete JDBC implementation.
 
 ### Duplicate definition
@@ -87,6 +91,7 @@ Same product = same `(NormalizedProductName, NormalizedBrand)`.
 | Remove accents (NFD) | `"Câmera"` → `"camera"` |
 | Normalize quotes | `''` and `"` → `'` |
 | Null brand → empty string | `null` → `""` |
+| Seller name → trim + uppercase | `"MegaStore"` → `"MEGASTORE"` |
 
 Semantic synonyms (e.g. `Router` vs `Roteador`) are **not** unified.
 
@@ -98,16 +103,23 @@ Semantic synonyms (e.g. `Router` vs `Roteador`) are **not** unified.
 2. `SELECT` by normalized keys
 3. Return `ProductInsertionResult(product, inserted, productLinkedToSeller = false)`
 
+`SellerRepository.insertIfNotExistsAndFetch` (implemented by `SqliteSellerRepository`):
+
+1. `INSERT ... ON CONFLICT(NormalizedName) DO NOTHING`
+2. `SELECT` by `NormalizedName`
+
 First-wins: existing production rows are never overwritten.
 
 ### Import flow
 
 Per `SellerProduct` item, `ProductInsertionService.insert` (domain) orchestrates:
 
-1. `buildProduct(sellerProduct)` → `Product` candidate (`PENDING`), using `ProductNormalizationService`
-2. `ProductRepository.insertIfNotExistsAndFetch` → `ProductInsertionResult` (`productLinkedToSeller = false`)
-3. `SellerProductRepository.link` with the `SellerProduct` seller snapshot
-4. Returns `result.withProductLinkedToSeller(linked)`
+1. `buildSeller(sellerProduct)` → normalize seller name, then `SellerRepository.insertIfNotExistsAndFetch`
+2. Rebuild `SellerProduct` with the persisted `Seller` (id filled)
+3. `buildProduct(sellerProduct)` → `Product` candidate (`PENDING`), using `ProductNormalizationService`
+4. `ProductRepository.insertIfNotExistsAndFetch` → `ProductInsertionResult` (`productLinkedToSeller = false`)
+5. `SellerProductRepository.link` with the `SellerProduct` seller snapshot (`SellerId`)
+6. Returns `result.withProductLinkedToSeller(linked)`
 
 `CatalogIntegrationApp.startApp` (application) orchestrates the whole flow: runs the schema migration,
 reads the catalog via `JsonCatalogReader`, delegates to `processProducts` (which loops over the inputs,
@@ -130,7 +142,6 @@ DDL in migrations may be static strings. Data backfill uses prepared statements.
 
 ## Future improvements
 
-- Dedicated `Seller` table with FK from `SellerProduct`
 - Synonym dictionary for cross-language product names
 - Activation workflow for `PENDING` products
 - Additional product identifiers (SKU, EAN) for deduplication

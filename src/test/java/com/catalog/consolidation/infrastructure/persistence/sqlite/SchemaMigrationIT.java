@@ -43,11 +43,23 @@ class SchemaMigrationIT {
 
             try (ResultSet sellerProductColumns = statement.executeQuery("PRAGMA table_info(SellerProduct)")) {
                 int columnCount = 0;
+                boolean hasSellerId = false;
                 while (sellerProductColumns.next()) {
                     columnCount++;
+                    if ("SellerId".equalsIgnoreCase(sellerProductColumns.getString("name"))) {
+                        hasSellerId = true;
+                    }
                 }
                 assertThat(columnCount).isEqualTo(7);
+                assertThat(hasSellerId).isTrue();
             }
+
+            try (ResultSet sellers = statement.executeQuery(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'Seller'")) {
+                assertThat(sellers.next()).isTrue();
+            }
+
+            assertThat(columnExists(connection, "Seller", "NormalizedName")).isTrue();
         }
     }
 

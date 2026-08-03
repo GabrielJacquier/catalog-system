@@ -24,7 +24,8 @@ class SellerProductFactoryTest {
         SellerProduct result = factory.create(json);
 
         assertThat(result.sellerProductId()).isEqualTo("seller-1");
-        assertThat(result.sellerName()).isEqualTo("MegaStore");
+        assertThat(result.seller().getName()).isEqualTo("MegaStore");
+        assertThat(result.seller().getId()).isNull();
         assertThat(result.sellerProductName()).isEqualTo("Smartphone Galaxy S23");
         assertThat(result.sellerBrand()).isEqualTo("Samsung");
         assertThat(result.sellerCategory()).isEqualTo("Electronics");

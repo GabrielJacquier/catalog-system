@@ -20,13 +20,13 @@ public class SqliteSellerProductRepository implements SellerProductRepository {
     public boolean link(long productId, SellerProduct sellerProduct) {
         String sql = """
                 INSERT OR IGNORE INTO SellerProduct (
-                    SellerName, ProductId, SellerProductId,
+                    SellerId, ProductId, SellerProductId,
                     SellerProductName, SellerBrand, SellerCategory
                 ) VALUES (?, ?, ?, ?, ?, ?)
                 """;
         try (Connection connection = databaseConfig.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, sellerProduct.sellerName());
+            statement.setLong(1, sellerProduct.seller().getId());
             statement.setLong(2, productId);
             statement.setString(3, sellerProduct.sellerProductId());
             statement.setString(4, sellerProduct.sellerProductName());

@@ -24,6 +24,13 @@ public class ProductNormalizationService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    public String normalizeSellerName(String sellerName) {
+        if (sellerName == null) {
+            return "";
+        }
+        return sellerName.trim().toUpperCase(Locale.ROOT);
+    }
+
     public boolean isSameProduct(Product first, Product second) {
         return Objects.equals(first.getNormalizedProductName(), second.getNormalizedProductName())
                 && Objects.equals(first.getNormalizedBrand(), second.getNormalizedBrand());

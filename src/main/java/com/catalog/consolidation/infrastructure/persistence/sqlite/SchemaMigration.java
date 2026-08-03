@@ -60,6 +60,7 @@ public class SchemaMigration {
                     """);
         }
 
+        createSellerTable(connection);
         recreateSellerProductTable(connection);
     }
 
@@ -120,19 +121,32 @@ public class SchemaMigration {
         }
     }
 
+    private void createSellerTable(Connection connection) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS Seller (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        Name TEXT NOT NULL,
+                        NormalizedName TEXT NOT NULL,
+                        UNIQUE (NormalizedName)
+                    )
+                    """);
+        }
+    }
+
     private void recreateSellerProductTable(Connection connection) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             statement.execute("DROP TABLE IF EXISTS SellerProduct");
             statement.execute("""
                     CREATE TABLE SellerProduct (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        SellerName TEXT NOT NULL,
+                        SellerId INTEGER NOT NULL REFERENCES Seller(Id),
                         ProductId INTEGER NOT NULL REFERENCES Product(Id),
                         SellerProductId TEXT NOT NULL,
                         SellerProductName TEXT NOT NULL,
                         SellerBrand TEXT,
                         SellerCategory TEXT,
-                        UNIQUE (SellerName, SellerProductId)
+                        UNIQUE (SellerId, SellerProductId)
                     )
                     """);
         }

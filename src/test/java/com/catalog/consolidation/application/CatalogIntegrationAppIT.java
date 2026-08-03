@@ -1,9 +1,11 @@
 package com.catalog.consolidation.application;
 
 import com.catalog.consolidation.domain.model.Availability;
+import com.catalog.consolidation.domain.model.Seller;
 import com.catalog.consolidation.domain.model.SellerProduct;
 import com.catalog.consolidation.domain.repository.ProductRepository;
 import com.catalog.consolidation.domain.repository.SellerProductRepository;
+import com.catalog.consolidation.domain.repository.SellerRepository;
 import com.catalog.consolidation.domain.service.ProductInsertionService;
 import com.catalog.consolidation.domain.service.ProductNormalizationService;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
@@ -11,6 +13,7 @@ import com.catalog.consolidation.infrastructure.json.JsonCatalogReader;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SchemaMigration;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SqliteProductRepository;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SqliteSellerProductRepository;
+import com.catalog.consolidation.infrastructure.persistence.sqlite.SqliteSellerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -41,9 +44,11 @@ class CatalogIntegrationAppIT {
         schemaMigration.run();
 
         ProductRepository productRepository = new SqliteProductRepository(databaseConfig);
+        SellerRepository sellerRepository = new SqliteSellerRepository(databaseConfig);
         SellerProductRepository sellerProductRepository = new SqliteSellerProductRepository(databaseConfig);
         ProductInsertionService productInsertionService = new ProductInsertionService(
                 productNormalizationService,
+                sellerRepository,
                 productRepository,
                 sellerProductRepository
         );
@@ -171,6 +176,12 @@ class CatalogIntegrationAppIT {
 
     private SellerProduct createSellerProduct(String sellerProductId, String sellerName, String sellerProductName,
                                               String sellerBrand, String sellerCategory) {
-        return new SellerProduct(sellerName, sellerProductId, sellerProductName, sellerBrand, sellerCategory);
+        return new SellerProduct(
+                new Seller(sellerName, null),
+                sellerProductId,
+                sellerProductName,
+                sellerBrand,
+                sellerCategory
+        );
     }
 }

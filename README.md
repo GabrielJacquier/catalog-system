@@ -201,9 +201,10 @@ SELECT COUNT(*) AS seller_product_links FROM SellerProduct;
 Shows products where the seller sent a different name or category than the canonical `Product` row:
 
 ```sql
-SELECT p.Name, sp.SellerProductName, sp.SellerCategory, sp.SellerName
+SELECT p.Name, sp.SellerProductName, sp.SellerCategory, s.Name AS SellerName
 FROM Product p
 JOIN SellerProduct sp ON sp.ProductId = p.Id
+JOIN Seller s ON s.Id = sp.SellerId
 WHERE p.Name != sp.SellerProductName OR p.Category != sp.SellerCategory
 LIMIT 10;
 ```
@@ -253,5 +254,5 @@ See [docs/architecture.md](docs/architecture.md) for design decisions, hexagonal
 | Duplicate detection | `NormalizedProductName` + `NormalizedBrand` (category excluded) |
 | Production safety | Existing products → `AVAILABLE`; new imports → `PENDING` |
 | Upsert | `INSERT ON CONFLICT DO NOTHING` + `SELECT` via `insertIfNotExistsAndFetch` |
-| Seller data | Original name/brand/category stored in `SellerProduct` snapshot columns |
+| Seller data | `Seller` table + FK; original name/brand/category stored in `SellerProduct` snapshot columns |
 | SQL security | All runtime queries use `PreparedStatement` (no string concatenation) |
