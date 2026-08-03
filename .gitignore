@@ -1,0 +1,9 @@
+target/
+*.iml
+.idea/
+.DS_Store
+.cursor/
+
+# duplicate seed files at repo root (canonical copies live under database/ and input/)
+/catalog.db
+/product-entry.json
