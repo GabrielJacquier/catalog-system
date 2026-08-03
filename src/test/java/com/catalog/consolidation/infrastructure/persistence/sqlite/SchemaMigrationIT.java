@@ -63,9 +63,10 @@ class SchemaMigrationIT {
 
         try (Connection connection = databaseConfig.getConnection();
              Statement statement = connection.createStatement();
-             ResultSet versions = statement.executeQuery("SELECT COUNT(*) AS total FROM schema_version")) {
-            versions.next();
-            assertThat(versions.getInt("total")).isEqualTo(2);
+             ResultSet products = statement.executeQuery("SELECT COUNT(*) AS total FROM Product")) {
+            products.next();
+            assertThat(products.getInt("total")).isEqualTo(1);
+            assertThat(columnExists(connection, "Product", "Availability")).isTrue();
         }
     }
 

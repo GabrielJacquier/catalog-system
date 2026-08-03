@@ -13,8 +13,6 @@ import java.util.List;
 
 public class SchemaMigration {
 
-    private static final int CURRENT_VERSION = 2;
-
     private final DatabaseConfig databaseConfig;
     private final ProductMatcher productMatcher;
 
@@ -25,18 +23,13 @@ public class SchemaMigration {
 
     public void run() throws SQLException {
         try (Connection connection = databaseConfig.getConnection()) {
+            if (isMigrationApplied(connection)) {
+                return;
+            }
+
             connection.setAutoCommit(false);
             try {
-                ensureSchemaVersionTable(connection);
-                int appliedVersion = getAppliedVersion(connection);
-                if (appliedVersion < 1) {
-                    applyMigrationV1(connection);
-                    recordVersion(connection, 1);
-                }
-                if (appliedVersion < 2) {
-                    applyMigrationV2(connection);
-                    recordVersion(connection, 2);
-                }
+                applyMigration(connection);
                 connection.commit();
             } catch (SQLException ex) {
                 connection.rollback();
@@ -45,37 +38,11 @@ public class SchemaMigration {
         }
     }
 
-    private void ensureSchemaVersionTable(Connection connection) throws SQLException {
-        try (Statement statement = connection.createStatement()) {
-            statement.execute("""
-                    CREATE TABLE IF NOT EXISTS schema_version (
-                        version INTEGER PRIMARY KEY,
-                        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-                    )
-                    """);
-        }
+    private boolean isMigrationApplied(Connection connection) throws SQLException {
+        return columnExists(connection, "Product", "Availability");
     }
 
-    private int getAppliedVersion(Connection connection) throws SQLException {
-        String sql = "SELECT MAX(version) FROM schema_version";
-        try (Statement statement = connection.createStatement();
-             ResultSet resultSet = statement.executeQuery(sql)) {
-            if (resultSet.next()) {
-                return resultSet.getInt(1);
-            }
-            return 0;
-        }
-    }
-
-    private void recordVersion(Connection connection, int version) throws SQLException {
-        String sql = "INSERT INTO schema_version (version) VALUES (?)";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, version);
-            statement.executeUpdate();
-        }
-    }
-
-    private void applyMigrationV1(Connection connection) throws SQLException {
+    private void applyMigration(Connection connection) throws SQLException {
         addColumnIfMissing(connection, "Product", "Availability", "TEXT DEFAULT 'AVAILABLE'");
         addColumnIfMissing(connection, "Product", "NormalizedProductName", "TEXT");
         addColumnIfMissing(connection, "Product", "NormalizedBrand", "TEXT");
@@ -98,25 +65,6 @@ public class SchemaMigration {
         }
 
         recreateSellerProductTable(connection);
-    }
-
-    private void applyMigrationV2(Connection connection) throws SQLException {
-        if (columnExists(connection, "Product", "SellerStatus")
-                && !columnExists(connection, "Product", "Availability")) {
-            try (Statement statement = connection.createStatement()) {
-                statement.execute("ALTER TABLE Product RENAME COLUMN SellerStatus TO Availability");
-                statement.execute("""
-                        UPDATE Product
-                        SET Availability = 'AVAILABLE'
-                        WHERE Availability = 'ACTIVE_TO_SELLER'
-                        """);
-                statement.execute("""
-                        UPDATE Product
-                        SET Availability = 'PENDING'
-                        WHERE Availability = 'INACTIVE_TO_SELLER'
-                        """);
-            }
-        }
     }
 
     private void addColumnIfMissing(Connection connection, String table, String column, String definition)

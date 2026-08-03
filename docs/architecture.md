@@ -48,7 +48,7 @@ A unique index on `(NormalizedProductName, NormalizedBrand)` supports `INSERT ..
 
 ### Migration idempotency
 
-`schema_version` tracks applied migrations. `SchemaMigration.run()` applies version `1` only once.
+Migration idempotency is detected by the presence of the `Availability` column on `Product`. If it already exists, `SchemaMigration.run()` skips execution.
 
 ## Stage 2 — Consolidate catalog
 
