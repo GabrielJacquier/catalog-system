@@ -1,5 +1,6 @@
 package com.catalog.consolidation.infrastructure.persistence.sqlite;
 
+import com.catalog.consolidation.domain.model.Availability;
 import com.catalog.consolidation.domain.service.ProductMatcher;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 
@@ -43,19 +44,14 @@ public class SchemaMigration {
     }
 
     private void applyMigration(Connection connection) throws SQLException {
+        applySchemaMigrations(connection);
+        applyBackfills(connection);
+    }
+
+    private void applySchemaMigrations(Connection connection) throws SQLException {
         addColumnIfMissing(connection, "Product", "Availability", "TEXT DEFAULT 'AVAILABLE'");
         addColumnIfMissing(connection, "Product", "NormalizedProductName", "TEXT");
         addColumnIfMissing(connection, "Product", "NormalizedBrand", "TEXT");
-
-        try (Statement statement = connection.createStatement()) {
-            statement.execute("""
-                    UPDATE Product
-                    SET Availability = 'AVAILABLE'
-                    WHERE Availability IS NULL
-                    """);
-        }
-
-        backfillNormalizedColumns(connection);
 
         try (Statement statement = connection.createStatement()) {
             statement.execute("""
@@ -65,6 +61,41 @@ public class SchemaMigration {
         }
 
         recreateSellerProductTable(connection);
+    }
+
+    private void applyBackfills(Connection connection) throws SQLException {
+        List<ProductRow> rows = loadAllProducts(connection);
+
+        String updateSql = """
+                UPDATE Product
+                SET Availability = ?, NormalizedProductName = ?, NormalizedBrand = ?
+                WHERE Id = ?
+                """;
+        try (PreparedStatement statement = connection.prepareStatement(updateSql)) {
+            for (ProductRow row : rows) {
+                statement.setString(1, Availability.AVAILABLE.name());
+                statement.setString(2, productMatcher.normalizeProductName(row.name()));
+                statement.setString(3, productMatcher.normalizeBrand(row.brand()));
+                statement.setLong(4, row.id());
+                statement.executeUpdate();
+            }
+        }
+    }
+
+    private List<ProductRow> loadAllProducts(Connection connection) throws SQLException {
+        String selectSql = "SELECT Id, Name, Brand FROM Product";
+        List<ProductRow> rows = new ArrayList<>();
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery(selectSql)) {
+            while (resultSet.next()) {
+                rows.add(new ProductRow(
+                        resultSet.getLong("Id"),
+                        resultSet.getString("Name"),
+                        resultSet.getString("Brand")
+                ));
+            }
+        }
+        return rows;
     }
 
     private void addColumnIfMissing(Connection connection, String table, String column, String definition)
@@ -86,39 +117,6 @@ public class SchemaMigration {
                 }
             }
             return false;
-        }
-    }
-
-    private void backfillNormalizedColumns(Connection connection) throws SQLException {
-        String selectSql = """
-                SELECT Id, Name, Brand
-                FROM Product
-                WHERE NormalizedProductName IS NULL OR NormalizedBrand IS NULL
-                """;
-        List<ProductRow> rows = new ArrayList<>();
-        try (Statement statement = connection.createStatement();
-             ResultSet resultSet = statement.executeQuery(selectSql)) {
-            while (resultSet.next()) {
-                rows.add(new ProductRow(
-                        resultSet.getLong("Id"),
-                        resultSet.getString("Name"),
-                        resultSet.getString("Brand")
-                ));
-            }
-        }
-
-        String updateSql = """
-                UPDATE Product
-                SET NormalizedProductName = ?, NormalizedBrand = ?
-                WHERE Id = ?
-                """;
-        try (PreparedStatement statement = connection.prepareStatement(updateSql)) {
-            for (ProductRow row : rows) {
-                statement.setString(1, productMatcher.normalizeProductName(row.name()));
-                statement.setString(2, productMatcher.normalizeBrand(row.brand()));
-                statement.setLong(3, row.id());
-                statement.executeUpdate();
-            }
         }
     }
 
