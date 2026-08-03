@@ -133,13 +133,27 @@ All tests (unit + integration) run inside Docker — no local Java 17 or Maven r
 docker build --target test -t catalog-consolidation-test .
 ```
 
-This builds the project and executes `mvn test`. A successful run ends with exit code `0`.
+This builds the project and executes `mvn test`. A successful run ends with exit code `0`, but Maven
+runs in quiet mode (`-q`), so you mostly only see output on failure.
+
+### Run tests and see full live output
+
+If you want to see each test class and its result printed as it runs (without waiting for the full
+multi-stage image build), run Maven directly inside a throwaway container, mounting the project:
+
+```bash
+docker run --rm -v "${PWD}:/app" -w /app maven:3.9-eclipse-temurin-17 mvn -B test
+```
+
+On Windows PowerShell, `${PWD}` resolves automatically. On Linux/macOS, use `$(pwd)` instead.
 
 ### What is covered
 
 | Test class | Type | What it verifies |
 |------------|------|------------------|
 | `ProductMatcherTest` | Unit | Normalization rules (whitespace, accents, quotes, brand null) |
+| `ProductFactoryTest` | Unit | Maps a JDBC `ResultSet` row into a `Product` domain model |
+| `SellerProductInputFactoryTest` | Unit | Maps the JSON DTO into the `SellerProductInput` domain model |
 | `SchemaMigrationIT` | Integration | Stage 1 migration, backfill, idempotent re-run |
 | `ImportCatalogServiceIT` | Integration | Upsert, inactive new products, multi-seller links, idempotency |
 

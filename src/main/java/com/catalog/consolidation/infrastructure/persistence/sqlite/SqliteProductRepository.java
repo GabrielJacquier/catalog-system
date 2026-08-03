@@ -2,9 +2,9 @@ package com.catalog.consolidation.infrastructure.persistence.sqlite;
 
 import com.catalog.consolidation.domain.model.Product;
 import com.catalog.consolidation.domain.model.ProductUpsertResult;
-import com.catalog.consolidation.domain.model.Availability;
 import com.catalog.consolidation.domain.repository.ProductRepository;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
+import com.catalog.consolidation.infrastructure.factory.ProductFactory;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -14,9 +14,11 @@ import java.sql.SQLException;
 public class SqliteProductRepository implements ProductRepository {
 
     private final DatabaseConfig databaseConfig;
+    private final ProductFactory productFactory;
 
     public SqliteProductRepository(DatabaseConfig databaseConfig) {
         this.databaseConfig = databaseConfig;
+        this.productFactory = new ProductFactory();
     }
 
     @Override
@@ -66,20 +68,8 @@ public class SqliteProductRepository implements ProductRepository {
                 if (!resultSet.next()) {
                     throw new IllegalStateException("Product not found after upsert");
                 }
-                return mapProduct(resultSet);
+                return productFactory.create(resultSet);
             }
         }
-    }
-
-    static Product mapProduct(ResultSet resultSet) throws SQLException {
-        Product product = new Product();
-        product.setId(resultSet.getLong("Id"));
-        product.setName(resultSet.getString("Name"));
-        product.setBrand(resultSet.getString("Brand"));
-        product.setCategory(resultSet.getString("Category"));
-        product.setNormalizedProductName(resultSet.getString("NormalizedProductName"));
-        product.setNormalizedBrand(resultSet.getString("NormalizedBrand"));
-        product.setAvailability(Availability.valueOf(resultSet.getString("Availability")));
-        return product;
     }
 }
