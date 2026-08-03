@@ -3,7 +3,7 @@ package com.catalog.consolidation.application.service;
 import com.catalog.consolidation.application.dto.SellerProductInput;
 import com.catalog.consolidation.application.mapper.ProductMapper;
 import com.catalog.consolidation.domain.model.ImportCatalogResult;
-import com.catalog.consolidation.domain.model.SellerStatus;
+import com.catalog.consolidation.domain.model.Availability;
 import com.catalog.consolidation.domain.service.ProductMatcher;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SchemaMigration;
@@ -68,9 +68,9 @@ class ImportCatalogServiceIT {
         try (Connection connection = databaseConfig.getConnection();
              Statement statement = connection.createStatement();
              ResultSet product = statement.executeQuery(
-                     "SELECT SellerStatus FROM Product WHERE Name = 'Smartphone Galaxy S23'")) {
+                     "SELECT Availability FROM Product WHERE Name = 'Smartphone Galaxy S23'")) {
             product.next();
-            assertThat(product.getString("SellerStatus")).isEqualTo(SellerStatus.ACTIVE_TO_SELLER.name());
+            assertThat(product.getString("Availability")).isEqualTo(Availability.AVAILABLE.name());
         }
     }
 
@@ -87,9 +87,9 @@ class ImportCatalogServiceIT {
         try (Connection connection = databaseConfig.getConnection();
              Statement statement = connection.createStatement();
              ResultSet product = statement.executeQuery(
-                     "SELECT SellerStatus FROM Product WHERE Name = 'Brand New Product'")) {
+                     "SELECT Availability FROM Product WHERE Name = 'Brand New Product'")) {
             product.next();
-            assertThat(product.getString("SellerStatus")).isEqualTo(SellerStatus.INACTIVE_TO_SELLER.name());
+            assertThat(product.getString("Availability")).isEqualTo(Availability.PENDING.name());
         }
     }
 

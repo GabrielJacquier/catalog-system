@@ -6,10 +6,10 @@ Marketplace catalog consolidation: ingest seller product feeds, deduplicate by n
 
 ## Two-stage flow
 
-1. **Stage 1 — Prepare database**: additive schema migration on the production `Product` table (`SellerStatus`, normalized columns) and recreation of `SellerProduct`.
+1. **Stage 1 — Prepare database**: additive schema migration on the production `Product` table (`Availability`, normalized columns) and recreation of `SellerProduct`.
 2. **Stage 2 — Consolidate catalog**: read `seller-products.json`, upsert products, and create seller links with original seller snapshots.
 
-New products are inserted as `INACTIVE_TO_SELLER`. Existing production products remain `ACTIVE_TO_SELLER`.
+New products are inserted as `PENDING`. Existing production products remain `AVAILABLE`.
 
 ## Prerequisites
 
@@ -66,7 +66,7 @@ Summary:
 | Log field | Meaning |
 |-----------|---------|
 | `Total processed` | Number of entries read from `seller-products.json` |
-| `Products inserted` | New canonical products created as `INACTIVE_TO_SELLER` (no normalized match existed) |
+| `Products inserted` | New canonical products created as `PENDING` (no normalized match existed) |
 | `Seller links created` | New rows inserted into `SellerProduct` |
 | `Seller links skipped` | Duplicate seller + `SellerProductId` already linked (`INSERT OR IGNORE`) |
 
@@ -80,7 +80,7 @@ Summary:
 After the container exits, query the mounted database:
 
 ```bash
-docker run --rm -v "%cd%/database:/data" nouchka/sqlite3 /data/catalog.db "SELECT SellerStatus, COUNT(*) FROM Product GROUP BY SellerStatus;"
+docker run --rm -v "%cd%/database:/data" nouchka/sqlite3 /data/catalog.db "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability;"
 ```
 
 On Linux/macOS, replace `%cd%` with `$(pwd)`.
@@ -88,8 +88,8 @@ On Linux/macOS, replace `%cd%` with `$(pwd)`.
 **Expected result (first run on seed DB):**
 
 ```
-ACTIVE_TO_SELLER|975
-INACTIVE_TO_SELLER|6
+AVAILABLE|975
+PENDING|6
 ```
 
 More validation queries are listed in [Validation queries](#validation-queries) below.
@@ -158,9 +158,9 @@ Run these against `database/catalog.db` after consolidation.
 ### Product status breakdown
 
 ```sql
-SELECT SellerStatus, COUNT(*) AS total
+SELECT Availability, COUNT(*) AS total
 FROM Product
-GROUP BY SellerStatus;
+GROUP BY Availability;
 ```
 
 ### Total seller links
@@ -184,7 +184,7 @@ LIMIT 10;
 ### Products offered by multiple sellers
 
 ```sql
-SELECT p.Name, p.SellerStatus, COUNT(sp.Id) AS sellers
+SELECT p.Name, p.Availability, COUNT(sp.Id) AS sellers
 FROM Product p
 JOIN SellerProduct sp ON sp.ProductId = p.Id
 GROUP BY p.Id
@@ -194,9 +194,9 @@ HAVING sellers > 1;
 ### New inactive products from integration
 
 ```sql
-SELECT Name, Brand, Category, SellerStatus
+SELECT Name, Brand, Category, Availability
 FROM Product
-WHERE SellerStatus = 'INACTIVE_TO_SELLER';
+WHERE Availability = 'PENDING';
 ```
 
 ### One-liner via Docker (copy-paste friendly)
@@ -204,13 +204,13 @@ WHERE SellerStatus = 'INACTIVE_TO_SELLER';
 **Windows (PowerShell):**
 
 ```powershell
-docker run --rm -v "${PWD}/database:/data" nouchka/sqlite3 /data/catalog.db "SELECT SellerStatus, COUNT(*) FROM Product GROUP BY SellerStatus; SELECT COUNT(*) FROM SellerProduct;"
+docker run --rm -v "${PWD}/database:/data" nouchka/sqlite3 /data/catalog.db "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability; SELECT COUNT(*) FROM SellerProduct;"
 ```
 
 **Linux / macOS:**
 
 ```bash
-docker run --rm -v "$(pwd)/database:/data" nouchka/sqlite3 /data/catalog.db "SELECT SellerStatus, COUNT(*) FROM Product GROUP BY SellerStatus; SELECT COUNT(*) FROM SellerProduct;"
+docker run --rm -v "$(pwd)/database:/data" nouchka/sqlite3 /data/catalog.db "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability; SELECT COUNT(*) FROM SellerProduct;"
 ```
 
 ---
@@ -224,7 +224,7 @@ See [docs/architecture.md](docs/architecture.md) for design decisions, hexagonal
 | Topic | Decision |
 |-------|----------|
 | Duplicate detection | `NormalizedProductName` + `NormalizedBrand` (category excluded) |
-| Production safety | Existing products → `ACTIVE_TO_SELLER`; new imports → `INACTIVE_TO_SELLER` |
+| Production safety | Existing products → `AVAILABLE`; new imports → `PENDING` |
 | Upsert | `INSERT ON CONFLICT DO NOTHING` + `SELECT` via `insertIfNotExistsAndFetch` |
 | Seller data | Original name/brand/category stored in `SellerProduct` snapshot columns |
 | SQL security | All runtime queries use `PreparedStatement` (no string concatenation) |

@@ -2,7 +2,7 @@ package com.catalog.consolidation.infrastructure.persistence.sqlite;
 
 import com.catalog.consolidation.domain.model.Product;
 import com.catalog.consolidation.domain.model.ProductUpsertResult;
-import com.catalog.consolidation.domain.model.SellerStatus;
+import com.catalog.consolidation.domain.model.Availability;
 import com.catalog.consolidation.domain.ports.out.ProductRepository;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 
@@ -43,7 +43,7 @@ public class SqliteProductRepository implements ProductRepository {
 
     private int insertProduct(Connection connection, Product product) throws SQLException {
         String sql = """
-                INSERT INTO Product (Name, Brand, Category, NormalizedProductName, NormalizedBrand, SellerStatus)
+                INSERT INTO Product (Name, Brand, Category, NormalizedProductName, NormalizedBrand, Availability)
                 VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(NormalizedProductName, NormalizedBrand) DO NOTHING
                 """;
@@ -53,7 +53,7 @@ public class SqliteProductRepository implements ProductRepository {
             statement.setString(3, product.getCategory());
             statement.setString(4, product.getNormalizedProductName());
             statement.setString(5, product.getNormalizedBrand());
-            statement.setString(6, product.getSellerStatus().name());
+            statement.setString(6, product.getAvailability().name());
             return statement.executeUpdate();
         }
     }
@@ -62,7 +62,7 @@ public class SqliteProductRepository implements ProductRepository {
                                           String normalizedProductName,
                                           String normalizedBrand) throws SQLException {
         String sql = """
-                SELECT Id, Name, Brand, Category, NormalizedProductName, NormalizedBrand, SellerStatus
+                SELECT Id, Name, Brand, Category, NormalizedProductName, NormalizedBrand, Availability
                 FROM Product
                 WHERE NormalizedProductName = ? AND NormalizedBrand = ?
                 """;
@@ -86,7 +86,7 @@ public class SqliteProductRepository implements ProductRepository {
         product.setCategory(resultSet.getString("Category"));
         product.setNormalizedProductName(resultSet.getString("NormalizedProductName"));
         product.setNormalizedBrand(resultSet.getString("NormalizedBrand"));
-        product.setSellerStatus(SellerStatus.valueOf(resultSet.getString("SellerStatus")));
+        product.setAvailability(Availability.valueOf(resultSet.getString("Availability")));
         return product;
     }
 }

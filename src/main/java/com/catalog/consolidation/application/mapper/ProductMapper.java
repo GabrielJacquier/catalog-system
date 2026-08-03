@@ -3,7 +3,7 @@ package com.catalog.consolidation.application.mapper;
 import com.catalog.consolidation.application.dto.SellerProductInput;
 import com.catalog.consolidation.domain.model.Product;
 import com.catalog.consolidation.domain.model.SellerProductLink;
-import com.catalog.consolidation.domain.model.SellerStatus;
+import com.catalog.consolidation.domain.model.Availability;
 import com.catalog.consolidation.domain.service.ProductMatcher;
 
 public class ProductMapper {
@@ -19,7 +19,7 @@ public class ProductMapper {
                 category,
                 normalizedProductName,
                 normalizedBrand,
-                SellerStatus.INACTIVE_TO_SELLER
+                Availability.PENDING
         );
     }
 

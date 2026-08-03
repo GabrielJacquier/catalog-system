@@ -10,19 +10,19 @@ The catalog consolidation system ingests seller product JSON feeds into a shared
 
 The `Product` table is already used in production. All changes are **additive** and backward-compatible.
 
-### `SellerStatus`
+### `Availability`
 
 | Value | Meaning |
 |-------|---------|
-| `ACTIVE_TO_SELLER` | Visible to the existing production flow |
-| `INACTIVE_TO_SELLER` | Integrated from sellers, pending review/activation |
+| `AVAILABLE` | Visible to the existing production flow |
+| `PENDING` | Integrated from sellers, pending review/activation |
 
-Existing seed products are backfilled as `ACTIVE_TO_SELLER`. New products from Stage 2 are inserted as `INACTIVE_TO_SELLER`.
+Existing seed products are backfilled as `AVAILABLE`. New products from Stage 2 are inserted as `PENDING`.
 
 Production queries should filter:
 
 ```sql
-WHERE SellerStatus = 'ACTIVE_TO_SELLER'
+WHERE Availability = 'AVAILABLE'
 ```
 
 ### Normalized columns
@@ -93,7 +93,7 @@ First-wins: existing production rows are never overwritten.
 
 `ImportCatalogService.execute`:
 
-1. Map input → `Product` candidate (`INACTIVE_TO_SELLER`)
+1. Map input → `Product` candidate (`PENDING`)
 2. `insertIfNotExistsAndFetch`
 3. `SellerProductRepository.link` with seller snapshot
 
@@ -114,5 +114,5 @@ DDL in migrations may be static strings. Data backfill uses prepared statements.
 
 - Dedicated `Seller` table with FK from `SellerProduct`
 - Synonym dictionary for cross-language product names
-- Activation workflow for `INACTIVE_TO_SELLER` products
+- Activation workflow for `PENDING` products
 - Additional product identifiers (SKU, EAN) for deduplication

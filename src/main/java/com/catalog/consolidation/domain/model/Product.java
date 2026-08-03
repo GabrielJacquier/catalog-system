@@ -8,20 +8,20 @@ public class Product {
     private String category;
     private String normalizedProductName;
     private String normalizedBrand;
-    private SellerStatus sellerStatus;
+    private Availability availability;
 
     public Product() {
     }
 
     public Product(String name, String brand, String category,
                    String normalizedProductName, String normalizedBrand,
-                   SellerStatus sellerStatus) {
+                   Availability availability) {
         this.name = name;
         this.brand = brand;
         this.category = category;
         this.normalizedProductName = normalizedProductName;
         this.normalizedBrand = normalizedBrand;
-        this.sellerStatus = sellerStatus;
+        this.availability = availability;
     }
 
     public Long getId() {
@@ -72,11 +72,11 @@ public class Product {
         this.normalizedBrand = normalizedBrand;
     }
 
-    public SellerStatus getSellerStatus() {
-        return sellerStatus;
+    public Availability getAvailability() {
+        return availability;
     }
 
-    public void setSellerStatus(SellerStatus sellerStatus) {
-        this.sellerStatus = sellerStatus;
+    public void setAvailability(Availability availability) {
+        this.availability = availability;
     }
 }

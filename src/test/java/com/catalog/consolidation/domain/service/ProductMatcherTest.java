@@ -1,7 +1,7 @@
 package com.catalog.consolidation.domain.service;
 
 import com.catalog.consolidation.domain.model.Product;
-import com.catalog.consolidation.domain.model.SellerStatus;
+import com.catalog.consolidation.domain.model.Availability;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -59,13 +59,13 @@ class ProductMatcherTest {
                 "Smartphone Galaxy S23", "Samsung", "Electronics",
                 productMatcher.normalizeProductName("Smartphone Galaxy S23"),
                 productMatcher.normalizeBrand("Samsung"),
-                SellerStatus.ACTIVE_TO_SELLER
+                Availability.AVAILABLE
         );
         Product second = new Product(
                 "Smartphone  Galaxy S23", "Samsung", "Phones",
                 productMatcher.normalizeProductName("Smartphone  Galaxy S23"),
                 productMatcher.normalizeBrand("Samsung"),
-                SellerStatus.INACTIVE_TO_SELLER
+                Availability.PENDING
         );
 
         assertThat(productMatcher.isSameProduct(first, second)).isTrue();

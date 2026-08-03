@@ -28,14 +28,14 @@ class SchemaMigrationIT {
         try (Connection connection = databaseConfig.getConnection();
              Statement statement = connection.createStatement()) {
 
-            assertThat(columnExists(connection, "Product", "SellerStatus")).isTrue();
+            assertThat(columnExists(connection, "Product", "Availability")).isTrue();
             assertThat(columnExists(connection, "Product", "NormalizedProductName")).isTrue();
             assertThat(columnExists(connection, "Product", "NormalizedBrand")).isTrue();
 
             try (ResultSet products = statement.executeQuery(
-                    "SELECT SellerStatus, NormalizedProductName, NormalizedBrand FROM Product")) {
+                    "SELECT Availability, NormalizedProductName, NormalizedBrand FROM Product")) {
                 assertThat(products.next()).isTrue();
-                assertThat(products.getString("SellerStatus")).isEqualTo("ACTIVE_TO_SELLER");
+                assertThat(products.getString("Availability")).isEqualTo("AVAILABLE");
                 assertThat(products.getString("NormalizedProductName")).isEqualTo("smartphone galaxy s23");
                 assertThat(products.getString("NormalizedBrand")).isEqualTo("samsung");
                 assertThat(products.next()).isFalse();
@@ -65,7 +65,7 @@ class SchemaMigrationIT {
              Statement statement = connection.createStatement();
              ResultSet versions = statement.executeQuery("SELECT COUNT(*) AS total FROM schema_version")) {
             versions.next();
-            assertThat(versions.getInt("total")).isEqualTo(1);
+            assertThat(versions.getInt("total")).isEqualTo(2);
         }
     }
 

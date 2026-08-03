@@ -1,7 +1,5 @@
 package com.catalog.consolidation.infrastructure.persistence.sqlite;
 
-import com.catalog.consolidation.domain.model.Product;
-import com.catalog.consolidation.domain.model.SellerStatus;
 import com.catalog.consolidation.domain.service.ProductMatcher;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 
@@ -15,7 +13,7 @@ import java.util.List;
 
 public class SchemaMigration {
 
-    private static final int CURRENT_VERSION = 1;
+    private static final int CURRENT_VERSION = 2;
 
     private final DatabaseConfig databaseConfig;
     private final ProductMatcher productMatcher;
@@ -31,9 +29,13 @@ public class SchemaMigration {
             try {
                 ensureSchemaVersionTable(connection);
                 int appliedVersion = getAppliedVersion(connection);
-                if (appliedVersion < CURRENT_VERSION) {
+                if (appliedVersion < 1) {
                     applyMigrationV1(connection);
-                    recordVersion(connection, CURRENT_VERSION);
+                    recordVersion(connection, 1);
+                }
+                if (appliedVersion < 2) {
+                    applyMigrationV2(connection);
+                    recordVersion(connection, 2);
                 }
                 connection.commit();
             } catch (SQLException ex) {
@@ -74,15 +76,15 @@ public class SchemaMigration {
     }
 
     private void applyMigrationV1(Connection connection) throws SQLException {
-        addColumnIfMissing(connection, "Product", "SellerStatus", "TEXT DEFAULT 'ACTIVE_TO_SELLER'");
+        addColumnIfMissing(connection, "Product", "Availability", "TEXT DEFAULT 'AVAILABLE'");
         addColumnIfMissing(connection, "Product", "NormalizedProductName", "TEXT");
         addColumnIfMissing(connection, "Product", "NormalizedBrand", "TEXT");
 
         try (Statement statement = connection.createStatement()) {
             statement.execute("""
                     UPDATE Product
-                    SET SellerStatus = 'ACTIVE_TO_SELLER'
-                    WHERE SellerStatus IS NULL
+                    SET Availability = 'AVAILABLE'
+                    WHERE Availability IS NULL
                     """);
         }
 
@@ -96,6 +98,25 @@ public class SchemaMigration {
         }
 
         recreateSellerProductTable(connection);
+    }
+
+    private void applyMigrationV2(Connection connection) throws SQLException {
+        if (columnExists(connection, "Product", "SellerStatus")
+                && !columnExists(connection, "Product", "Availability")) {
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("ALTER TABLE Product RENAME COLUMN SellerStatus TO Availability");
+                statement.execute("""
+                        UPDATE Product
+                        SET Availability = 'AVAILABLE'
+                        WHERE Availability = 'ACTIVE_TO_SELLER'
+                        """);
+                statement.execute("""
+                        UPDATE Product
+                        SET Availability = 'PENDING'
+                        WHERE Availability = 'INACTIVE_TO_SELLER'
+                        """);
+            }
+        }
     }
 
     private void addColumnIfMissing(Connection connection, String table, String column, String definition)
