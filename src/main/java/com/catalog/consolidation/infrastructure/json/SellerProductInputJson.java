@@ -1,8 +1,8 @@
-package com.catalog.consolidation.application.dto;
+package com.catalog.consolidation.infrastructure.json;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class SellerProductInput {
+public class SellerProductInputJson {
 
     @JsonProperty("Id")
     private String id;

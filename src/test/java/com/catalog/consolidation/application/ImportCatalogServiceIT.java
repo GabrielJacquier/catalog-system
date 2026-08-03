@@ -1,10 +1,12 @@
-package com.catalog.consolidation.application.service;
+package com.catalog.consolidation.application;
 
-import com.catalog.consolidation.application.dto.SellerProductInput;
-import com.catalog.consolidation.application.mapper.ProductMapper;
-import com.catalog.consolidation.domain.model.ImportCatalogResult;
 import com.catalog.consolidation.domain.model.Availability;
+import com.catalog.consolidation.domain.model.SellerProductInput;
+import com.catalog.consolidation.domain.repository.ProductRepository;
+import com.catalog.consolidation.domain.repository.SellerProductRepository;
+import com.catalog.consolidation.domain.service.ProductInsertionService;
 import com.catalog.consolidation.domain.service.ProductMatcher;
+import com.catalog.consolidation.domain.service.SellerProductPreparationService;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SchemaMigration;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SqliteProductRepository;
@@ -34,14 +36,19 @@ class ImportCatalogServiceIT {
         Path databasePath = tempDir.resolve("catalog.db");
         createSeedDatabase(databasePath);
         databaseConfig = new DatabaseConfig(databasePath.toString());
-        new SchemaMigration(databaseConfig, new ProductMatcher()).run();
+        ProductMatcher productMatcher = new ProductMatcher();
+        new SchemaMigration(databaseConfig, productMatcher).run();
 
-        importCatalogService = new ImportCatalogService(
-                new SqliteProductRepository(databaseConfig),
-                new SqliteSellerProductRepository(databaseConfig),
-                new ProductMapper(),
-                new ProductMatcher()
+        SellerProductPreparationService preparationService = new SellerProductPreparationService(productMatcher);
+        ProductRepository productRepository = new SqliteProductRepository(databaseConfig);
+        SellerProductRepository sellerProductRepository = new SqliteSellerProductRepository(databaseConfig);
+        ProductInsertionService productInsertionService = new ProductInsertionService(
+                preparationService,
+                productRepository,
+                sellerProductRepository
         );
+
+        importCatalogService = new ImportCatalogService(productInsertionService);
     }
 
     @Test
@@ -158,12 +165,6 @@ class ImportCatalogServiceIT {
 
     private SellerProductInput createInput(String id, String sellerName, String name,
                                            String brand, String category) {
-        SellerProductInput input = new SellerProductInput();
-        input.setId(id);
-        input.setSellerName(sellerName);
-        input.setName(name);
-        input.setBrand(brand);
-        input.setCategory(category);
-        return input;
+        return new SellerProductInput(id, sellerName, name, brand, category);
     }
 }

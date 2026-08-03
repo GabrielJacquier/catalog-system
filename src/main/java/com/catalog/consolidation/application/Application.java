@@ -1,11 +1,11 @@
-package com.catalog.consolidation.bootstrap;
+package com.catalog.consolidation.application;
 
-import com.catalog.consolidation.application.dto.SellerProductInput;
-import com.catalog.consolidation.application.mapper.ProductMapper;
-import com.catalog.consolidation.application.service.ImportCatalogService;
-import com.catalog.consolidation.domain.model.ImportCatalogResult;
-import com.catalog.consolidation.domain.ports.in.ImportCatalogUseCase;
+import com.catalog.consolidation.domain.model.SellerProductInput;
+import com.catalog.consolidation.domain.repository.ProductRepository;
+import com.catalog.consolidation.domain.repository.SellerProductRepository;
+import com.catalog.consolidation.domain.service.ProductInsertionService;
 import com.catalog.consolidation.domain.service.ProductMatcher;
+import com.catalog.consolidation.domain.service.SellerProductPreparationService;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 import com.catalog.consolidation.infrastructure.json.JsonCatalogReader;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SchemaMigration;
@@ -38,14 +38,17 @@ public class Application {
         System.out.println("Stage 2: Importing catalog from " + inputPath + "...");
         List<SellerProductInput> inputs = new JsonCatalogReader().read(inputPath);
 
-        ImportCatalogUseCase importCatalogUseCase = new ImportCatalogService(
-                new SqliteProductRepository(databaseConfig),
-                new SqliteSellerProductRepository(databaseConfig),
-                new ProductMapper(),
-                productMatcher
+        SellerProductPreparationService preparationService = new SellerProductPreparationService(productMatcher);
+        ProductRepository productRepository = new SqliteProductRepository(databaseConfig);
+        SellerProductRepository sellerProductRepository = new SqliteSellerProductRepository(databaseConfig);
+        ProductInsertionService productInsertionService = new ProductInsertionService(
+                preparationService,
+                productRepository,
+                sellerProductRepository
         );
 
-        ImportCatalogResult result = importCatalogUseCase.execute(inputs);
+        ImportCatalogService importCatalogService = new ImportCatalogService(productInsertionService);
+        ImportCatalogResult result = importCatalogService.execute(inputs);
 
         System.out.println("Stage 2 completed.");
         System.out.println("Summary:");

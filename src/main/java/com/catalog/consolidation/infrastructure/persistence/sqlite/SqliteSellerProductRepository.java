@@ -1,7 +1,7 @@
 package com.catalog.consolidation.infrastructure.persistence.sqlite;
 
 import com.catalog.consolidation.domain.model.SellerProductLink;
-import com.catalog.consolidation.domain.ports.out.SellerProductRepository;
+import com.catalog.consolidation.domain.repository.SellerProductRepository;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 
 import java.sql.Connection;

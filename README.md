@@ -22,7 +22,7 @@ New products are inserted as `PENDING`. Existing production products remain `AVA
 catalog-system/
 ├── database/catalog.db          # seed SQLite database (production catalog)
 ├── input/seller-products.json   # seller product feed
-├── src/                         # Java source (hexagonal architecture)
+├── src/                         # Java source (layered: domain / infrastructure / application)
 ├── docs/architecture.md         # design decisions
 ├── Dockerfile
 └── docker-compose.yml

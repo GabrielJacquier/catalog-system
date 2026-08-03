@@ -1,4 +1,4 @@
-package com.catalog.consolidation.domain.ports.out;
+package com.catalog.consolidation.domain.repository;
 
 import com.catalog.consolidation.domain.model.SellerProductLink;
 

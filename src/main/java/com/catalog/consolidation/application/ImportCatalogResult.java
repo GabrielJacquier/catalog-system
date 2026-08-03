@@ -1,4 +1,4 @@
-package com.catalog.consolidation.domain.model;
+package com.catalog.consolidation.application;
 
 public record ImportCatalogResult(
         int productsInserted,

@@ -3,7 +3,7 @@ package com.catalog.consolidation.infrastructure.persistence.sqlite;
 import com.catalog.consolidation.domain.model.Product;
 import com.catalog.consolidation.domain.model.ProductUpsertResult;
 import com.catalog.consolidation.domain.model.Availability;
-import com.catalog.consolidation.domain.ports.out.ProductRepository;
+import com.catalog.consolidation.domain.repository.ProductRepository;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 
 import java.sql.Connection;
