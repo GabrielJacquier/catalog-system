@@ -1,0 +1,7 @@
+services:
+  catalog-consolidation:
+    build: .
+    volumes:
+      - ./database:/data
+      - ./input:/input
+    command: ["java", "-jar", "app.jar", "--db", "/data/catalog.db", "--input", "/input/seller-products.json"]
