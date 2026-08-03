@@ -20,13 +20,16 @@ New products are inserted as `PENDING`. Existing production products remain `AVA
 
 ```
 catalog-system/
-├── database/catalog.db          # seed SQLite database (production catalog)
-├── input/seller-products.json   # seller product feed
-├── src/                         # Java source (layered: domain / infrastructure / application)
-├── docs/architecture.md         # design decisions
+├── samples/catalog.db            # seed SQLite database (production catalog)
+├── samples/seller-products.json  # seller product feed
+├── src/                          # Java source (layered: domain / infrastructure / application)
+├── docs/architecture.md          # design decisions
 ├── Dockerfile
 └── docker-compose.yml
 ```
+
+`samples/catalog.db` and `samples/seller-products.json` are the fixed inputs (read-only, never
+modified). Every run writes/updates `catalog-updated.db` at the project root.
 
 ---
 
@@ -43,15 +46,20 @@ docker compose up --build
 This single command:
 
 1. Builds the application image (Maven + Java 17)
-2. Mounts `./database` and `./input` as volumes
-3. Runs **Stage 1** (schema migration) then **Stage 2** (catalog import)
-4. Exits when finished (batch job, not a long-running server)
+2. Mounts `samples/catalog.db` and `samples/seller-products.json` read-only
+3. Mounts the project root read-write so `catalog-updated.db` appears on your host
+4. Runs **Stage 1** (schema migration) then **Stage 2** (catalog import)
+5. Exits when finished (batch job, not a long-running server)
+
+`catalog-updated.db` is created from the seed on the first run, and reused (accumulating changes) on
+every subsequent run — the seed itself is never touched.
 
 ### Step 2 — Read the log output
 
 You should see output similar to:
 
 ```
+Using working database: /output/catalog-updated.db
 Stage 1: Preparing database...
 Stage 1 completed.
 Stage 2: Importing catalog from /input/seller-products.json...
@@ -72,15 +80,17 @@ Summary:
 
 **First run vs re-run:**
 
-- **First run** on a fresh seed DB: most seller links are created; `Products inserted` reflects genuinely new catalog items.
-- **Second run** (same DB, no reset): `Products inserted` → `0`, `Seller links created` → `0`, `Seller links skipped` → equals `Total processed` (full idempotency).
+- **First run** (no `catalog-updated.db` yet): most seller links are created; `Products inserted`
+  reflects genuinely new catalog items.
+- **Second run** (same `catalog-updated.db`, same input): `Products inserted` → `0`,
+  `Seller links created` → `0`, `Seller links skipped` → equals `Total processed` (full idempotency).
 
 ### Step 3 — Inspect the database
 
-After the container exits, query the mounted database:
+After the container exits, query `catalog-updated.db` at the project root:
 
 ```bash
-docker run --rm -v "%cd%/database:/data" nouchka/sqlite3 /data/catalog.db "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability;"
+docker run --rm -v "%cd%:/data" nouchka/sqlite3 /data/catalog-updated.db "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability;"
 ```
 
 On Linux/macOS, replace `%cd%` with `$(pwd)`.
@@ -96,10 +106,11 @@ More validation queries are listed in [Validation queries](#validation-queries) 
 
 ### Step 4 (optional) — Re-run from a clean seed
 
-To repeat the demo from scratch, restore the original database before running again:
+`catalog-updated.db` accumulates changes across runs since it's reused each time. To start over from
+the untouched seed, just delete it before re-running:
 
 ```bash
-# copy your original seed file back into database/catalog.db, then:
+rm catalog-updated.db   # PowerShell: Remove-Item catalog-updated.db
 docker compose up --build
 ```
 
@@ -110,16 +121,18 @@ docker compose up --build
 ```bash
 mvn package
 java -jar target/catalog-consolidation-1.0.0-SNAPSHOT.jar \
-  --db database/catalog.db \
-  --input input/seller-products.json
+  --db samples/catalog.db \
+  --input samples/seller-products.json \
+  --output catalog-updated.db
 ```
 
-CLI defaults (no flags needed if paths match):
+CLI flags (all optional, same defaults as Docker):
 
 | Flag | Default |
 |------|---------|
-| `--db` | `database/catalog.db` |
-| `--input` | `input/seller-products.json` |
+| `--db` | `samples/catalog.db` |
+| `--input` | `samples/seller-products.json` |
+| `--output` | `catalog-updated.db` |
 
 ---
 
@@ -167,7 +180,7 @@ mvn test
 
 ## Validation queries
 
-Run these against `database/catalog.db` after consolidation.
+Run these against `catalog-updated.db` (at the project root) after consolidation.
 
 ### Product status breakdown
 
@@ -218,13 +231,13 @@ WHERE Availability = 'PENDING';
 **Windows (PowerShell):**
 
 ```powershell
-docker run --rm -v "${PWD}/database:/data" nouchka/sqlite3 /data/catalog.db "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability; SELECT COUNT(*) FROM SellerProduct;"
+docker run --rm -v "${PWD}:/data" nouchka/sqlite3 /data/catalog-updated.db "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability; SELECT COUNT(*) FROM SellerProduct;"
 ```
 
 **Linux / macOS:**
 
 ```bash
-docker run --rm -v "$(pwd)/database:/data" nouchka/sqlite3 /data/catalog.db "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability; SELECT COUNT(*) FROM SellerProduct;"
+docker run --rm -v "$(pwd):/data" nouchka/sqlite3 /data/catalog-updated.db "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability; SELECT COUNT(*) FROM SellerProduct;"
 ```
 
 ---

@@ -2,6 +2,7 @@ services:
   catalog-consolidation:
     build: .
     volumes:
-      - ./database:/data
-      - ./input:/input
-    command: ["java", "-jar", "app.jar", "--db", "/data/catalog.db", "--input", "/input/seller-products.json"]
+      - ./samples/catalog.db:/seed/catalog.db:ro
+      - ./samples/seller-products.json:/input/seller-products.json:ro
+      - .:/output
+    command: ["--db", "/seed/catalog.db", "--input", "/input/seller-products.json", "--output", "/output/catalog-updated.db"]

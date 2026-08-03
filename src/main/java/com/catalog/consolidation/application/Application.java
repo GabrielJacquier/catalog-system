@@ -10,6 +10,8 @@ import com.catalog.consolidation.infrastructure.persistence.sqlite.SchemaMigrati
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SqliteProductRepository;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SqliteSellerProductRepository;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
@@ -17,16 +19,21 @@ import java.util.Map;
 
 public class Application {
 
-    private static final String DEFAULT_DB_PATH = "database/catalog.db";
-    private static final String DEFAULT_INPUT_PATH = "input/seller-products.json";
+    private static final String DEFAULT_SEED_DB_PATH = "samples/catalog.db";
+    private static final String DEFAULT_INPUT_PATH = "samples/seller-products.json";
+    private static final String DEFAULT_OUTPUT_PATH = "catalog-updated.db";
 
     public static void main(String[] args) throws Exception {
         Map<String, String> arguments = parseArguments(args);
-        Path databasePath = Paths.get(arguments.getOrDefault("--db", DEFAULT_DB_PATH));
+        Path seedDbPath = Paths.get(arguments.getOrDefault("--db", DEFAULT_SEED_DB_PATH));
         Path inputPath = Paths.get(arguments.getOrDefault("--input", DEFAULT_INPUT_PATH));
+        Path outputPath = Paths.get(arguments.getOrDefault("--output", DEFAULT_OUTPUT_PATH));
+
+        ensureWorkingDatabaseExists(seedDbPath, outputPath);
+        System.out.println("Using working database: " + outputPath);
 
         ProductNormalizationService productNormalizationService = new ProductNormalizationService();
-        DatabaseConfig databaseConfig = new DatabaseConfig(databasePath.toString());
+        DatabaseConfig databaseConfig = new DatabaseConfig(outputPath.toString());
 
         SchemaMigration schemaMigration = new SchemaMigration(databaseConfig, productNormalizationService);
         JsonCatalogReader jsonCatalogReader = new JsonCatalogReader();
@@ -46,6 +53,12 @@ public class Application {
         );
 
         catalogIntegrationApp.startApp(inputPath);
+    }
+
+    private static void ensureWorkingDatabaseExists(Path seedDbPath, Path outputPath) throws IOException {
+        if (Files.notExists(outputPath)) {
+            Files.copy(seedDbPath, outputPath);
+        }
     }
 
     static Map<String, String> parseArguments(String[] args) {

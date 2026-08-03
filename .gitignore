@@ -4,6 +4,5 @@ target/
 .DS_Store
 .cursor/
 
-# duplicate seed files at repo root (canonical copies live under database/ and input/)
-/catalog.db
-/product-entry.json
+# generated output database at repo root (created/updated by running the app; seed stays in samples/)
+/*.db
