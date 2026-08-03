@@ -60,8 +60,9 @@ domain/             → entities, business rules (ProductMatcher, SellerProductP
                        (ProductRepository, SellerProductRepository)
 infrastructure/      → implements domain repository interfaces (JDBC), JSON reader + DTO + factory,
                        SchemaMigration
-application/         → composition root (Application, CLI), ImportCatalogService (orchestration
-                       and counters), ImportCatalogResult
+application/         → Application (composition root, CLI) creates all dependencies and hands them
+                       to CatalogIntegrationApp, which runs the migration, reads the catalog,
+                       processes products (counters) and prints the summary; CatalogIntegrationResult
 ```
 
 Dependency direction: `application` knows both `domain` and `infrastructure` and wires concrete
@@ -109,9 +110,11 @@ Per seller input item, `ProductInsertionService.insert` (domain) orchestrates:
 4. `SellerProductRepository.link` with seller snapshot
 5. Returns `ProductInsertionResult(upsertResult, linked)`
 
-`ImportCatalogService.execute` (application) loops over the inputs, calls `ProductInsertionService.insert`
-for each, and only counts the outcome (`productsInserted`, `sellerLinksCreated`, `sellerLinksSkipped`) —
-it has no business logic of its own.
+`CatalogIntegrationApp.startApp` (application) orchestrates the whole flow: runs the schema migration,
+reads the catalog via `JsonCatalogReader`, delegates to `processProducts` (which loops over the inputs,
+calls `ProductInsertionService.insert` for each, and only counts the outcome — `productsInserted`,
+`sellerLinksCreated`, `sellerLinksSkipped`), and finally prints the summary. It has no business logic
+of its own — `Application` (the CLI entrypoint) only builds every dependency and hands them to it.
 
 ### Seller conflicts
 

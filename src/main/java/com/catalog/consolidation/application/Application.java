@@ -1,6 +1,5 @@
 package com.catalog.consolidation.application;
 
-import com.catalog.consolidation.domain.model.SellerProductInput;
 import com.catalog.consolidation.domain.repository.ProductRepository;
 import com.catalog.consolidation.domain.repository.SellerProductRepository;
 import com.catalog.consolidation.domain.service.ProductInsertionService;
@@ -15,7 +14,6 @@ import com.catalog.consolidation.infrastructure.persistence.sqlite.SqliteSellerP
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class Application {
@@ -31,12 +29,8 @@ public class Application {
         ProductMatcher productMatcher = new ProductMatcher();
         DatabaseConfig databaseConfig = new DatabaseConfig(databasePath.toString());
 
-        System.out.println("Stage 1: Preparing database...");
-        new SchemaMigration(databaseConfig, productMatcher).run();
-        System.out.println("Stage 1 completed.");
-
-        System.out.println("Stage 2: Importing catalog from " + inputPath + "...");
-        List<SellerProductInput> inputs = new JsonCatalogReader().read(inputPath);
+        SchemaMigration schemaMigration = new SchemaMigration(databaseConfig, productMatcher);
+        JsonCatalogReader jsonCatalogReader = new JsonCatalogReader();
 
         SellerProductPreparationService preparationService = new SellerProductPreparationService(productMatcher);
         ProductRepository productRepository = new SqliteProductRepository(databaseConfig);
@@ -47,15 +41,13 @@ public class Application {
                 sellerProductRepository
         );
 
-        ImportCatalogService importCatalogService = new ImportCatalogService(productInsertionService);
-        ImportCatalogResult result = importCatalogService.execute(inputs);
+        CatalogIntegrationApp catalogIntegrationApp = new CatalogIntegrationApp(
+                schemaMigration,
+                jsonCatalogReader,
+                productInsertionService
+        );
 
-        System.out.println("Stage 2 completed.");
-        System.out.println("Summary:");
-        System.out.println("  Total processed: " + result.totalProcessed());
-        System.out.println("  Products inserted: " + result.productsInserted());
-        System.out.println("  Seller links created: " + result.sellerLinksCreated());
-        System.out.println("  Seller links skipped: " + result.sellerLinksSkipped());
+        catalogIntegrationApp.startApp(inputPath);
     }
 
     static Map<String, String> parseArguments(String[] args) {

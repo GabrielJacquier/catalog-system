@@ -1,6 +1,6 @@
 package com.catalog.consolidation.application;
 
-public record ImportCatalogResult(
+public record CatalogIntegrationResult(
         int productsInserted,
         int sellerLinksCreated,
         int sellerLinksSkipped,

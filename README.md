@@ -155,7 +155,7 @@ On Windows PowerShell, `${PWD}` resolves automatically. On Linux/macOS, use `$(p
 | `ProductFactoryTest` | Unit | Maps a JDBC `ResultSet` row into a `Product` domain model |
 | `SellerProductInputFactoryTest` | Unit | Maps the JSON DTO into the `SellerProductInput` domain model |
 | `SchemaMigrationIT` | Integration | Stage 1 migration, backfill, idempotent re-run |
-| `ImportCatalogServiceIT` | Integration | Upsert, inactive new products, multi-seller links, idempotency |
+| `CatalogIntegrationAppIT` | Integration | Upsert, inactive new products, multi-seller links, idempotency |
 
 ### Run tests locally (if Maven is installed)
 

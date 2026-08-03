@@ -8,6 +8,7 @@ import com.catalog.consolidation.domain.service.ProductInsertionService;
 import com.catalog.consolidation.domain.service.ProductMatcher;
 import com.catalog.consolidation.domain.service.SellerProductPreparationService;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
+import com.catalog.consolidation.infrastructure.json.JsonCatalogReader;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SchemaMigration;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SqliteProductRepository;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SqliteSellerProductRepository;
@@ -23,13 +24,13 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class ImportCatalogServiceIT {
+class CatalogIntegrationAppIT {
 
     @TempDir
     Path tempDir;
 
     private DatabaseConfig databaseConfig;
-    private ImportCatalogService importCatalogService;
+    private CatalogIntegrationApp catalogIntegrationApp;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -37,7 +38,8 @@ class ImportCatalogServiceIT {
         createSeedDatabase(databasePath);
         databaseConfig = new DatabaseConfig(databasePath.toString());
         ProductMatcher productMatcher = new ProductMatcher();
-        new SchemaMigration(databaseConfig, productMatcher).run();
+        SchemaMigration schemaMigration = new SchemaMigration(databaseConfig, productMatcher);
+        schemaMigration.run();
 
         SellerProductPreparationService preparationService = new SellerProductPreparationService(productMatcher);
         ProductRepository productRepository = new SqliteProductRepository(databaseConfig);
@@ -48,7 +50,11 @@ class ImportCatalogServiceIT {
                 sellerProductRepository
         );
 
-        importCatalogService = new ImportCatalogService(productInsertionService);
+        catalogIntegrationApp = new CatalogIntegrationApp(
+                schemaMigration,
+                new JsonCatalogReader(),
+                productInsertionService
+        );
     }
 
     @Test
@@ -57,15 +63,16 @@ class ImportCatalogServiceIT {
                 "dup-1", "MegaStore", "Smartphone  Galaxy S23", "Samsung", "Electronics"
         );
 
-        ImportCatalogResult result = importCatalogService.execute(List.of(input));
+        CatalogIntegrationResult result = catalogIntegrationApp.processProducts(List.of(input));
 
         assertThat(result.productsInserted()).isZero();
         assertThat(result.sellerLinksCreated()).isEqualTo(1);
 
         try (Connection connection = databaseConfig.getConnection();
-             Statement statement = connection.createStatement();
-             ResultSet products = statement.executeQuery("SELECT COUNT(*) AS total FROM Product");
-             ResultSet sellerProducts = statement.executeQuery("SELECT COUNT(*) AS total FROM SellerProduct")) {
+             Statement productsStatement = connection.createStatement();
+             Statement sellerProductsStatement = connection.createStatement();
+             ResultSet products = productsStatement.executeQuery("SELECT COUNT(*) AS total FROM Product");
+             ResultSet sellerProducts = sellerProductsStatement.executeQuery("SELECT COUNT(*) AS total FROM SellerProduct")) {
             products.next();
             sellerProducts.next();
             assertThat(products.getInt("total")).isEqualTo(1);
@@ -87,7 +94,7 @@ class ImportCatalogServiceIT {
                 "new-1", "MegaStore", "Brand New Product", "Acme", "Gadgets"
         );
 
-        ImportCatalogResult result = importCatalogService.execute(List.of(input));
+        CatalogIntegrationResult result = catalogIntegrationApp.processProducts(List.of(input));
 
         assertThat(result.productsInserted()).isEqualTo(1);
 
@@ -109,12 +116,13 @@ class ImportCatalogServiceIT {
                 "seller-b", "StoreB", "Smartphone Galaxy S23", "Samsung", "Phones"
         );
 
-        importCatalogService.execute(List.of(first, second));
+        catalogIntegrationApp.processProducts(List.of(first, second));
 
         try (Connection connection = databaseConfig.getConnection();
-             Statement statement = connection.createStatement();
-             ResultSet products = statement.executeQuery("SELECT COUNT(*) AS total FROM Product");
-             ResultSet sellerProducts = statement.executeQuery("SELECT COUNT(*) AS total FROM SellerProduct")) {
+             Statement productsStatement = connection.createStatement();
+             Statement sellerProductsStatement = connection.createStatement();
+             ResultSet products = productsStatement.executeQuery("SELECT COUNT(*) AS total FROM Product");
+             ResultSet sellerProducts = sellerProductsStatement.executeQuery("SELECT COUNT(*) AS total FROM SellerProduct")) {
             products.next();
             sellerProducts.next();
             assertThat(products.getInt("total")).isEqualTo(1);
@@ -128,8 +136,8 @@ class ImportCatalogServiceIT {
                 "idem-1", "MegaStore", "Brand New Product", "Acme", "Gadgets"
         );
 
-        importCatalogService.execute(List.of(input));
-        ImportCatalogResult secondRun = importCatalogService.execute(List.of(input));
+        catalogIntegrationApp.processProducts(List.of(input));
+        CatalogIntegrationResult secondRun = catalogIntegrationApp.processProducts(List.of(input));
 
         assertThat(secondRun.productsInserted()).isZero();
         assertThat(secondRun.sellerLinksCreated()).isZero();
