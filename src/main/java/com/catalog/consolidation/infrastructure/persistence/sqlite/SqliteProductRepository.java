@@ -22,20 +22,13 @@ public class SqliteProductRepository implements ProductRepository {
     @Override
     public ProductUpsertResult insertIfNotExistsAndFetch(Product product) {
         try (Connection connection = databaseConfig.getConnection()) {
-            connection.setAutoCommit(false);
-            try {
-                int insertedRows = insertProduct(connection, product);
-                Product persisted = fetchByNormalizedKeys(
-                        connection,
-                        product.getNormalizedProductName(),
-                        product.getNormalizedBrand()
-                );
-                connection.commit();
-                return new ProductUpsertResult(persisted, insertedRows > 0);
-            } catch (SQLException ex) {
-                connection.rollback();
-                throw ex;
-            }
+            int insertedRows = insertProduct(connection, product);
+            Product persisted = fetchByNormalizedKeys(
+                    connection,
+                    product.getNormalizedProductName(),
+                    product.getNormalizedBrand()
+            );
+            return new ProductUpsertResult(persisted, insertedRows > 0);
         } catch (SQLException ex) {
             throw new IllegalStateException("Failed to upsert product", ex);
         }
