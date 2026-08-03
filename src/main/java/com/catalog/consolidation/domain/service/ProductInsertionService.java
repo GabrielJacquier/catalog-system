@@ -1,34 +1,47 @@
 package com.catalog.consolidation.domain.service;
 
+import com.catalog.consolidation.domain.model.Availability;
 import com.catalog.consolidation.domain.model.Product;
 import com.catalog.consolidation.domain.model.ProductInsertionResult;
-import com.catalog.consolidation.domain.model.ProductUpsertResult;
-import com.catalog.consolidation.domain.model.SellerProductInput;
-import com.catalog.consolidation.domain.model.SellerProductLink;
+import com.catalog.consolidation.domain.model.SellerProduct;
 import com.catalog.consolidation.domain.repository.ProductRepository;
 import com.catalog.consolidation.domain.repository.SellerProductRepository;
 
 public class ProductInsertionService {
 
-    private final SellerProductPreparationService preparationService;
+    private final ProductNormalizationService productNormalizationService;
     private final ProductRepository productRepository;
     private final SellerProductRepository sellerProductRepository;
 
-    public ProductInsertionService(SellerProductPreparationService preparationService,
-                                   ProductRepository productRepository,
-                                   SellerProductRepository sellerProductRepository) {
-        this.preparationService = preparationService;
+    public ProductInsertionService(ProductNormalizationService productNormalizationService,
+                                    ProductRepository productRepository,
+                                    SellerProductRepository sellerProductRepository) {
+        this.productNormalizationService = productNormalizationService;
         this.productRepository = productRepository;
         this.sellerProductRepository = sellerProductRepository;
     }
 
-    public ProductInsertionResult insert(SellerProductInput input) {
-        Product candidate = preparationService.prepareCandidate(input);
-        ProductUpsertResult upsertResult = productRepository.insertIfNotExistsAndFetch(candidate);
+    public ProductInsertionResult insert(SellerProduct sellerProduct) {
+        Product candidate = buildProduct(sellerProduct);
+        ProductInsertionResult result = productRepository.insertIfNotExistsAndFetch(candidate);
 
-        SellerProductLink link = preparationService.prepareLink(input);
-        boolean linked = sellerProductRepository.link(upsertResult.product().getId(), link);
+        boolean productLinkedToSeller = sellerProductRepository.link(result.product().getId(), sellerProduct);
 
-        return new ProductInsertionResult(upsertResult, linked);
+        return result.withProductLinkedToSeller(productLinkedToSeller);
+    }
+
+    private Product buildProduct(SellerProduct sellerProduct) {
+        String normalizedProductName = productNormalizationService.normalizeProductName(sellerProduct.sellerProductName());
+        String normalizedBrand = productNormalizationService.normalizeBrand(sellerProduct.sellerBrand());
+        String category = productNormalizationService.normalizeCategory(sellerProduct.sellerCategory());
+
+        return new Product(
+                sellerProduct.sellerProductName(),
+                sellerProduct.sellerBrand(),
+                category,
+                normalizedProductName,
+                normalizedBrand,
+                Availability.PENDING
+        );
     }
 }

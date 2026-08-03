@@ -1,14 +1,14 @@
 package com.catalog.consolidation.infrastructure.factory;
 
-import com.catalog.consolidation.domain.model.SellerProductInput;
+import com.catalog.consolidation.domain.model.SellerProduct;
 import com.catalog.consolidation.infrastructure.json.SellerProductInputJson;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class SellerProductInputFactoryTest {
+class SellerProductFactoryTest {
 
-    private final SellerProductInputFactory factory = new SellerProductInputFactory();
+    private final SellerProductFactory factory = new SellerProductFactory();
 
     @Test
     void shouldCreateDomainModelFromJsonDto() {
@@ -19,13 +19,13 @@ class SellerProductInputFactoryTest {
         json.setBrand("Samsung");
         json.setCategory("Electronics");
 
-        SellerProductInput result = factory.create(json);
+        SellerProduct result = factory.create(json);
 
-        assertThat(result.id()).isEqualTo("seller-1");
+        assertThat(result.sellerProductId()).isEqualTo("seller-1");
         assertThat(result.sellerName()).isEqualTo("MegaStore");
-        assertThat(result.name()).isEqualTo("Smartphone Galaxy S23");
-        assertThat(result.brand()).isEqualTo("Samsung");
-        assertThat(result.category()).isEqualTo("Electronics");
+        assertThat(result.sellerProductName()).isEqualTo("Smartphone Galaxy S23");
+        assertThat(result.sellerBrand()).isEqualTo("Samsung");
+        assertThat(result.sellerCategory()).isEqualTo("Electronics");
     }
 
     @Test
@@ -37,9 +37,9 @@ class SellerProductInputFactoryTest {
         json.setBrand(null);
         json.setCategory(null);
 
-        SellerProductInput result = factory.create(json);
+        SellerProduct result = factory.create(json);
 
-        assertThat(result.brand()).isNull();
-        assertThat(result.category()).isNull();
+        assertThat(result.sellerBrand()).isNull();
+        assertThat(result.sellerCategory()).isNull();
     }
 }

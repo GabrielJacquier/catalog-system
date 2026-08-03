@@ -1,7 +1,7 @@
 package com.catalog.consolidation.application;
 
 import com.catalog.consolidation.domain.model.ProductInsertionResult;
-import com.catalog.consolidation.domain.model.SellerProductInput;
+import com.catalog.consolidation.domain.model.SellerProduct;
 import com.catalog.consolidation.domain.service.ProductInsertionService;
 import com.catalog.consolidation.infrastructure.json.JsonCatalogReader;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SchemaMigration;
@@ -29,26 +29,26 @@ public class CatalogIntegrationApp {
         System.out.println("Stage 1 completed.");
 
         System.out.println("Stage 2: Importing catalog from " + inputPath + "...");
-        List<SellerProductInput> inputs = jsonCatalogReader.read(inputPath);
+        List<SellerProduct> sellerProducts = jsonCatalogReader.read(inputPath);
 
-        CatalogIntegrationResult result = processProducts(inputs);
+        CatalogIntegrationResult result = processProducts(sellerProducts);
 
         printSummary(result);
     }
 
-    CatalogIntegrationResult processProducts(List<SellerProductInput> inputs) {
+    CatalogIntegrationResult processProducts(List<SellerProduct> sellerProducts) {
         int productsInserted = 0;
         int sellerLinksCreated = 0;
         int sellerLinksSkipped = 0;
 
-        for (SellerProductInput input : inputs) {
-            ProductInsertionResult result = productInsertionService.insert(input);
+        for (SellerProduct sellerProduct : sellerProducts) {
+            ProductInsertionResult result = productInsertionService.insert(sellerProduct);
 
-            if (result.upsertResult().inserted()) {
+            if (result.inserted()) {
                 productsInserted++;
             }
 
-            if (result.linked()) {
+            if (result.productLinkedToSeller()) {
                 sellerLinksCreated++;
             } else {
                 sellerLinksSkipped++;
@@ -59,7 +59,7 @@ public class CatalogIntegrationApp {
                 productsInserted,
                 sellerLinksCreated,
                 sellerLinksSkipped,
-                inputs.size()
+                sellerProducts.size()
         );
     }
 

@@ -1,6 +1,6 @@
 package com.catalog.consolidation.infrastructure.persistence.sqlite;
 
-import com.catalog.consolidation.domain.service.ProductMatcher;
+import com.catalog.consolidation.domain.service.ProductNormalizationService;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -23,7 +23,7 @@ class SchemaMigrationIT {
         createSeedDatabase(databasePath);
 
         DatabaseConfig databaseConfig = new DatabaseConfig(databasePath.toString());
-        new SchemaMigration(databaseConfig, new ProductMatcher()).run();
+        new SchemaMigration(databaseConfig, new ProductNormalizationService()).run();
 
         try (Connection connection = databaseConfig.getConnection();
              Statement statement = connection.createStatement()) {
@@ -57,7 +57,7 @@ class SchemaMigrationIT {
         createSeedDatabase(databasePath);
 
         DatabaseConfig databaseConfig = new DatabaseConfig(databasePath.toString());
-        SchemaMigration migration = new SchemaMigration(databaseConfig, new ProductMatcher());
+        SchemaMigration migration = new SchemaMigration(databaseConfig, new ProductNormalizationService());
         migration.run();
         migration.run();
 

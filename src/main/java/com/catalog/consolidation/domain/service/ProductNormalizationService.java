@@ -6,7 +6,7 @@ import java.text.Normalizer;
 import java.util.Locale;
 import java.util.Objects;
 
-public class ProductMatcher {
+public class ProductNormalizationService {
 
     public String normalizeProductName(String name) {
         return normalize(name);

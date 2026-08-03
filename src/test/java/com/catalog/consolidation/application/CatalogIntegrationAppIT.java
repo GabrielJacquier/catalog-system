@@ -1,12 +1,11 @@
 package com.catalog.consolidation.application;
 
 import com.catalog.consolidation.domain.model.Availability;
-import com.catalog.consolidation.domain.model.SellerProductInput;
+import com.catalog.consolidation.domain.model.SellerProduct;
 import com.catalog.consolidation.domain.repository.ProductRepository;
 import com.catalog.consolidation.domain.repository.SellerProductRepository;
 import com.catalog.consolidation.domain.service.ProductInsertionService;
-import com.catalog.consolidation.domain.service.ProductMatcher;
-import com.catalog.consolidation.domain.service.SellerProductPreparationService;
+import com.catalog.consolidation.domain.service.ProductNormalizationService;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 import com.catalog.consolidation.infrastructure.json.JsonCatalogReader;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SchemaMigration;
@@ -37,15 +36,14 @@ class CatalogIntegrationAppIT {
         Path databasePath = tempDir.resolve("catalog.db");
         createSeedDatabase(databasePath);
         databaseConfig = new DatabaseConfig(databasePath.toString());
-        ProductMatcher productMatcher = new ProductMatcher();
-        SchemaMigration schemaMigration = new SchemaMigration(databaseConfig, productMatcher);
+        ProductNormalizationService productNormalizationService = new ProductNormalizationService();
+        SchemaMigration schemaMigration = new SchemaMigration(databaseConfig, productNormalizationService);
         schemaMigration.run();
 
-        SellerProductPreparationService preparationService = new SellerProductPreparationService(productMatcher);
         ProductRepository productRepository = new SqliteProductRepository(databaseConfig);
         SellerProductRepository sellerProductRepository = new SqliteSellerProductRepository(databaseConfig);
         ProductInsertionService productInsertionService = new ProductInsertionService(
-                preparationService,
+                productNormalizationService,
                 productRepository,
                 sellerProductRepository
         );
@@ -59,11 +57,11 @@ class CatalogIntegrationAppIT {
 
     @Test
     void shouldReuseActiveProductWithoutChangingStatus() throws Exception {
-        SellerProductInput input = createInput(
+        SellerProduct sellerProduct = createSellerProduct(
                 "dup-1", "MegaStore", "Smartphone  Galaxy S23", "Samsung", "Electronics"
         );
 
-        CatalogIntegrationResult result = catalogIntegrationApp.processProducts(List.of(input));
+        CatalogIntegrationResult result = catalogIntegrationApp.processProducts(List.of(sellerProduct));
 
         assertThat(result.productsInserted()).isZero();
         assertThat(result.sellerLinksCreated()).isEqualTo(1);
@@ -90,11 +88,11 @@ class CatalogIntegrationAppIT {
 
     @Test
     void shouldInsertNewProductAsInactive() throws Exception {
-        SellerProductInput input = createInput(
+        SellerProduct sellerProduct = createSellerProduct(
                 "new-1", "MegaStore", "Brand New Product", "Acme", "Gadgets"
         );
 
-        CatalogIntegrationResult result = catalogIntegrationApp.processProducts(List.of(input));
+        CatalogIntegrationResult result = catalogIntegrationApp.processProducts(List.of(sellerProduct));
 
         assertThat(result.productsInserted()).isEqualTo(1);
 
@@ -109,10 +107,10 @@ class CatalogIntegrationAppIT {
 
     @Test
     void shouldLinkMultipleSellersToSameProduct() throws Exception {
-        SellerProductInput first = createInput(
+        SellerProduct first = createSellerProduct(
                 "seller-a", "StoreA", "Smartphone  Galaxy S23", "Samsung", "Electronics"
         );
-        SellerProductInput second = createInput(
+        SellerProduct second = createSellerProduct(
                 "seller-b", "StoreB", "Smartphone Galaxy S23", "Samsung", "Phones"
         );
 
@@ -132,12 +130,12 @@ class CatalogIntegrationAppIT {
 
     @Test
     void shouldBeIdempotentWhenReprocessingSameFile() throws Exception {
-        SellerProductInput input = createInput(
+        SellerProduct sellerProduct = createSellerProduct(
                 "idem-1", "MegaStore", "Brand New Product", "Acme", "Gadgets"
         );
 
-        catalogIntegrationApp.processProducts(List.of(input));
-        CatalogIntegrationResult secondRun = catalogIntegrationApp.processProducts(List.of(input));
+        catalogIntegrationApp.processProducts(List.of(sellerProduct));
+        CatalogIntegrationResult secondRun = catalogIntegrationApp.processProducts(List.of(sellerProduct));
 
         assertThat(secondRun.productsInserted()).isZero();
         assertThat(secondRun.sellerLinksCreated()).isZero();
@@ -171,8 +169,8 @@ class CatalogIntegrationAppIT {
         }
     }
 
-    private SellerProductInput createInput(String id, String sellerName, String name,
-                                           String brand, String category) {
-        return new SellerProductInput(id, sellerName, name, brand, category);
+    private SellerProduct createSellerProduct(String sellerProductId, String sellerName, String sellerProductName,
+                                              String sellerBrand, String sellerCategory) {
+        return new SellerProduct(sellerName, sellerProductId, sellerProductName, sellerBrand, sellerCategory);
     }
 }

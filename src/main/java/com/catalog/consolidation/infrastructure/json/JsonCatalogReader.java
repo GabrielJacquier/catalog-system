@@ -1,7 +1,7 @@
 package com.catalog.consolidation.infrastructure.json;
 
-import com.catalog.consolidation.domain.model.SellerProductInput;
-import com.catalog.consolidation.infrastructure.factory.SellerProductInputFactory;
+import com.catalog.consolidation.domain.model.SellerProduct;
+import com.catalog.consolidation.infrastructure.factory.SellerProductFactory;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -12,21 +12,21 @@ import java.util.List;
 public class JsonCatalogReader {
 
     private final ObjectMapper objectMapper;
-    private final SellerProductInputFactory sellerProductInputFactory;
+    private final SellerProductFactory sellerProductFactory;
 
     public JsonCatalogReader() {
         this.objectMapper = new ObjectMapper();
-        this.sellerProductInputFactory = new SellerProductInputFactory();
+        this.sellerProductFactory = new SellerProductFactory();
     }
 
-    public List<SellerProductInput> read(Path inputPath) throws IOException {
+    public List<SellerProduct> read(Path inputPath) throws IOException {
         List<SellerProductInputJson> rawInputs = objectMapper.readValue(
                 inputPath.toFile(),
                 new TypeReference<List<SellerProductInputJson>>() {
                 }
         );
         return rawInputs.stream()
-                .map(sellerProductInputFactory::create)
+                .map(sellerProductFactory::create)
                 .toList();
     }
 }

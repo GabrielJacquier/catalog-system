@@ -1,7 +1,7 @@
 package com.catalog.consolidation.infrastructure.persistence.sqlite;
 
 import com.catalog.consolidation.domain.model.Availability;
-import com.catalog.consolidation.domain.service.ProductMatcher;
+import com.catalog.consolidation.domain.service.ProductNormalizationService;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 
 import java.sql.Connection;
@@ -15,11 +15,11 @@ import java.util.List;
 public class SchemaMigration {
 
     private final DatabaseConfig databaseConfig;
-    private final ProductMatcher productMatcher;
+    private final ProductNormalizationService productNormalizationService;
 
-    public SchemaMigration(DatabaseConfig databaseConfig, ProductMatcher productMatcher) {
+    public SchemaMigration(DatabaseConfig databaseConfig, ProductNormalizationService productNormalizationService) {
         this.databaseConfig = databaseConfig;
-        this.productMatcher = productMatcher;
+        this.productNormalizationService = productNormalizationService;
     }
 
     public void run() throws SQLException {
@@ -74,8 +74,8 @@ public class SchemaMigration {
         try (PreparedStatement statement = connection.prepareStatement(updateSql)) {
             for (ProductRow row : rows) {
                 statement.setString(1, Availability.AVAILABLE.name());
-                statement.setString(2, productMatcher.normalizeProductName(row.name()));
-                statement.setString(3, productMatcher.normalizeBrand(row.brand()));
+                statement.setString(2, productNormalizationService.normalizeProductName(row.name()));
+                statement.setString(3, productNormalizationService.normalizeBrand(row.brand()));
                 statement.setLong(4, row.id());
                 statement.executeUpdate();
             }

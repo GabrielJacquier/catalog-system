@@ -7,38 +7,38 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class ProductMatcherTest {
+class ProductNormalizationServiceTest {
 
-    private ProductMatcher productMatcher;
+    private ProductNormalizationService productNormalizationService;
 
     @BeforeEach
     void setUp() {
-        productMatcher = new ProductMatcher();
+        productNormalizationService = new ProductNormalizationService();
     }
 
     @Test
     void shouldCollapseExtraWhitespaceInProductName() {
-        assertThat(productMatcher.normalizeProductName("iPhone 15  Pro"))
+        assertThat(productNormalizationService.normalizeProductName("iPhone 15  Pro"))
                 .isEqualTo("iphone 15 pro");
     }
 
     @Test
     void shouldRemoveAccentsFromProductName() {
-        assertThat(productMatcher.normalizeProductName("Câmera Canon EOS R6"))
+        assertThat(productNormalizationService.normalizeProductName("Câmera Canon EOS R6"))
                 .isEqualTo("camera canon eos r6");
     }
 
     @Test
     void shouldNormalizeQuotesInProductName() {
-        assertThat(productMatcher.normalizeProductName("Tablet iPad Pro 12.9\""))
+        assertThat(productNormalizationService.normalizeProductName("Tablet iPad Pro 12.9\""))
                 .isEqualTo("tablet ipad pro 12.9'");
-        assertThat(productMatcher.normalizeProductName("Tablet iPad Pro 12.9''"))
+        assertThat(productNormalizationService.normalizeProductName("Tablet iPad Pro 12.9''"))
                 .isEqualTo("tablet ipad pro 12.9'");
     }
 
     @Test
     void shouldTreatNullBrandAsEmptyString() {
-        assertThat(productMatcher.normalizeBrand(null)).isEmpty();
+        assertThat(productNormalizationService.normalizeBrand(null)).isEmpty();
     }
 
     @Test
@@ -46,8 +46,8 @@ class ProductMatcherTest {
         String name = "MacBook Air  M2";
         String brand = "Apple";
 
-        String normalizedName = productMatcher.normalizeProductName(name);
-        String normalizedBrand = productMatcher.normalizeBrand(brand);
+        String normalizedName = productNormalizationService.normalizeProductName(name);
+        String normalizedBrand = productNormalizationService.normalizeBrand(brand);
 
         assertThat(normalizedName).isEqualTo("macbook air m2");
         assertThat(normalizedBrand).isEqualTo("apple");
@@ -57,17 +57,17 @@ class ProductMatcherTest {
     void shouldDetectSameProductByNormalizedFields() {
         Product first = new Product(
                 "Smartphone Galaxy S23", "Samsung", "Electronics",
-                productMatcher.normalizeProductName("Smartphone Galaxy S23"),
-                productMatcher.normalizeBrand("Samsung"),
+                productNormalizationService.normalizeProductName("Smartphone Galaxy S23"),
+                productNormalizationService.normalizeBrand("Samsung"),
                 Availability.AVAILABLE
         );
         Product second = new Product(
                 "Smartphone  Galaxy S23", "Samsung", "Phones",
-                productMatcher.normalizeProductName("Smartphone  Galaxy S23"),
-                productMatcher.normalizeBrand("Samsung"),
+                productNormalizationService.normalizeProductName("Smartphone  Galaxy S23"),
+                productNormalizationService.normalizeBrand("Samsung"),
                 Availability.PENDING
         );
 
-        assertThat(productMatcher.isSameProduct(first, second)).isTrue();
+        assertThat(productNormalizationService.isSameProduct(first, second)).isTrue();
     }
 }

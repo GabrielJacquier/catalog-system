@@ -151,9 +151,9 @@ On Windows PowerShell, `${PWD}` resolves automatically. On Linux/macOS, use `$(p
 
 | Test class | Type | What it verifies |
 |------------|------|------------------|
-| `ProductMatcherTest` | Unit | Normalization rules (whitespace, accents, quotes, brand null) |
+| `ProductNormalizationServiceTest` | Unit | Normalization rules (whitespace, accents, quotes, brand null) |
 | `ProductFactoryTest` | Unit | Maps a JDBC `ResultSet` row into a `Product` domain model |
-| `SellerProductInputFactoryTest` | Unit | Maps the JSON DTO into the `SellerProductInput` domain model |
+| `SellerProductFactoryTest` | Unit | Maps the JSON DTO into the `SellerProduct` domain model |
 | `SchemaMigrationIT` | Integration | Stage 1 migration, backfill, idempotent re-run |
 | `CatalogIntegrationAppIT` | Integration | Upsert, inactive new products, multi-seller links, idempotency |
 

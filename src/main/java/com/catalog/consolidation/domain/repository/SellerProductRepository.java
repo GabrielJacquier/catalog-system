@@ -1,8 +1,8 @@
 package com.catalog.consolidation.domain.repository;
 
-import com.catalog.consolidation.domain.model.SellerProductLink;
+import com.catalog.consolidation.domain.model.SellerProduct;
 
 public interface SellerProductRepository {
 
-    boolean link(long productId, SellerProductLink sellerProductLink);
+    boolean link(long productId, SellerProduct sellerProduct);
 }

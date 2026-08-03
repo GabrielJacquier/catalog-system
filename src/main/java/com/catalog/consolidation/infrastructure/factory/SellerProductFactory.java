@@ -1,14 +1,14 @@
 package com.catalog.consolidation.infrastructure.factory;
 
-import com.catalog.consolidation.domain.model.SellerProductInput;
+import com.catalog.consolidation.domain.model.SellerProduct;
 import com.catalog.consolidation.infrastructure.json.SellerProductInputJson;
 
-public class SellerProductInputFactory {
+public class SellerProductFactory {
 
-    public SellerProductInput create(SellerProductInputJson json) {
-        return new SellerProductInput(
-                json.getId(),
+    public SellerProduct create(SellerProductInputJson json) {
+        return new SellerProduct(
                 json.getSellerName(),
+                json.getId(),
                 json.getName(),
                 json.getBrand(),
                 json.getCategory()

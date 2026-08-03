@@ -1,7 +1,7 @@
 package com.catalog.consolidation.infrastructure.persistence.sqlite;
 
 import com.catalog.consolidation.domain.model.Product;
-import com.catalog.consolidation.domain.model.ProductUpsertResult;
+import com.catalog.consolidation.domain.model.ProductInsertionResult;
 import com.catalog.consolidation.domain.repository.ProductRepository;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 import com.catalog.consolidation.infrastructure.factory.ProductFactory;
@@ -22,7 +22,7 @@ public class SqliteProductRepository implements ProductRepository {
     }
 
     @Override
-    public ProductUpsertResult insertIfNotExistsAndFetch(Product product) {
+    public ProductInsertionResult insertIfNotExistsAndFetch(Product product) {
         try (Connection connection = databaseConfig.getConnection()) {
             int insertedRows = insertProduct(connection, product);
             Product persisted = fetchByNormalizedKeys(
@@ -30,7 +30,7 @@ public class SqliteProductRepository implements ProductRepository {
                     product.getNormalizedProductName(),
                     product.getNormalizedBrand()
             );
-            return new ProductUpsertResult(persisted, insertedRows > 0);
+            return new ProductInsertionResult(persisted, insertedRows > 0, false);
         } catch (SQLException ex) {
             throw new IllegalStateException("Failed to upsert product", ex);
         }

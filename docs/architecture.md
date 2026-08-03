@@ -55,8 +55,8 @@ Migration idempotency is detected by the presence of the `Availability` column o
 ### Layered architecture
 
 ```
-domain/             → entities, business rules (ProductMatcher, SellerProductPreparationService,
-                       ProductInsertionService) and the persistence contracts it depends on
+domain/             → entities, business rules (ProductNormalizationService, ProductInsertionService)
+                       and the persistence contracts it depends on
                        (ProductRepository, SellerProductRepository)
 infrastructure/      → implements domain repository interfaces (JDBC), JSON reader + DTO + factory,
                        SchemaMigration
@@ -78,7 +78,7 @@ Same product = same `(NormalizedProductName, NormalizedBrand)`.
 
 `Category` is stored on `Product` but **not** used for matching.
 
-### Normalization rules (`ProductMatcher`)
+### Normalization rules (`ProductNormalizationService`)
 
 | Rule | Example |
 |------|---------|
@@ -96,19 +96,18 @@ Semantic synonyms (e.g. `Router` vs `Roteador`) are **not** unified.
 
 1. `INSERT ... ON CONFLICT(NormalizedProductName, NormalizedBrand) DO NOTHING`
 2. `SELECT` by normalized keys
-3. Return `ProductUpsertResult(product, inserted)`
+3. Return `ProductInsertionResult(product, inserted, productLinkedToSeller = false)`
 
 First-wins: existing production rows are never overwritten.
 
 ### Import flow
 
-Per seller input item, `ProductInsertionService.insert` (domain) orchestrates:
+Per `SellerProduct` item, `ProductInsertionService.insert` (domain) orchestrates:
 
-1. `SellerProductPreparationService.prepareCandidate` → `Product` candidate (`PENDING`)
-2. `ProductRepository.insertIfNotExistsAndFetch`
-3. `SellerProductPreparationService.prepareLink` → `SellerProductLink`
-4. `SellerProductRepository.link` with seller snapshot
-5. Returns `ProductInsertionResult(upsertResult, linked)`
+1. `buildProduct(sellerProduct)` → `Product` candidate (`PENDING`), using `ProductNormalizationService`
+2. `ProductRepository.insertIfNotExistsAndFetch` → `ProductInsertionResult` (`productLinkedToSeller = false`)
+3. `SellerProductRepository.link` with the `SellerProduct` seller snapshot
+4. Returns `result.withProductLinkedToSeller(linked)`
 
 `CatalogIntegrationApp.startApp` (application) orchestrates the whole flow: runs the schema migration,
 reads the catalog via `JsonCatalogReader`, delegates to `processProducts` (which loops over the inputs,

@@ -1,6 +1,6 @@
 package com.catalog.consolidation.infrastructure.persistence.sqlite;
 
-import com.catalog.consolidation.domain.model.SellerProductLink;
+import com.catalog.consolidation.domain.model.SellerProduct;
 import com.catalog.consolidation.domain.repository.SellerProductRepository;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
 
@@ -17,7 +17,7 @@ public class SqliteSellerProductRepository implements SellerProductRepository {
     }
 
     @Override
-    public boolean link(long productId, SellerProductLink sellerProductLink) {
+    public boolean link(long productId, SellerProduct sellerProduct) {
         String sql = """
                 INSERT OR IGNORE INTO SellerProduct (
                     SellerName, ProductId, SellerProductId,
@@ -26,12 +26,12 @@ public class SqliteSellerProductRepository implements SellerProductRepository {
                 """;
         try (Connection connection = databaseConfig.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, sellerProductLink.getSellerName());
+            statement.setString(1, sellerProduct.sellerName());
             statement.setLong(2, productId);
-            statement.setString(3, sellerProductLink.getSellerProductId());
-            statement.setString(4, sellerProductLink.getSellerProductName());
-            statement.setString(5, sellerProductLink.getSellerBrand());
-            statement.setString(6, sellerProductLink.getSellerCategory());
+            statement.setString(3, sellerProduct.sellerProductId());
+            statement.setString(4, sellerProduct.sellerProductName());
+            statement.setString(5, sellerProduct.sellerBrand());
+            statement.setString(6, sellerProduct.sellerCategory());
             return statement.executeUpdate() > 0;
         } catch (SQLException ex) {
             throw new IllegalStateException("Failed to link seller product", ex);
