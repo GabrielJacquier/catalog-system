@@ -65,9 +65,6 @@ public class SqliteProductRepository implements ProductRepository {
             statement.setString(1, normalizedProductName);
             statement.setString(2, normalizedBrand);
             try (ResultSet resultSet = statement.executeQuery()) {
-                if (!resultSet.next()) {
-                    throw new IllegalStateException("Product not found after upsert");
-                }
                 return productFactory.create(resultSet);
             }
         }

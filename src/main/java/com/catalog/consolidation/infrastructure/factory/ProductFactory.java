@@ -9,6 +9,10 @@ import java.sql.SQLException;
 public class ProductFactory {
 
     public Product create(ResultSet resultSet) throws SQLException {
+        if (!resultSet.next()) {
+            throw new IllegalStateException("Product not found in result set");
+        }
+
         Product product = new Product();
         product.setId(resultSet.getLong("Id"));
         product.setName(resultSet.getString("Name"));

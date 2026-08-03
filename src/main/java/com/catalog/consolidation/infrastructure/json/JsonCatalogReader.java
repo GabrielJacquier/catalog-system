@@ -25,8 +25,6 @@ public class JsonCatalogReader {
                 new TypeReference<List<SellerProductInputJson>>() {
                 }
         );
-        return rawInputs.stream()
-                .map(sellerProductFactory::create)
-                .toList();
+        return sellerProductFactory.createAll(rawInputs);
     }
 }

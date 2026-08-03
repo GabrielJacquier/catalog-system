@@ -12,6 +12,7 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ProductFactoryTest {
 
@@ -44,8 +45,6 @@ class ProductFactoryTest {
                     """);
 
             try (ResultSet resultSet = statement.executeQuery("SELECT * FROM Product")) {
-                assertThat(resultSet.next()).isTrue();
-
                 Product product = productFactory.create(resultSet);
 
                 assertThat(product.getId()).isPositive();
@@ -55,6 +54,33 @@ class ProductFactoryTest {
                 assertThat(product.getNormalizedProductName()).isEqualTo("smartphone galaxy s23");
                 assertThat(product.getNormalizedBrand()).isEqualTo("samsung");
                 assertThat(product.getAvailability()).isEqualTo(Availability.AVAILABLE);
+            }
+        }
+    }
+
+    @Test
+    void shouldThrowWhenResultSetIsEmpty() throws Exception {
+        Path databasePath = tempDir.resolve("product-factory-empty-test.db");
+        DatabaseConfig databaseConfig = new DatabaseConfig(databasePath.toString());
+
+        try (Connection connection = databaseConfig.getConnection();
+             Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE Product (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        Name TEXT NOT NULL,
+                        Brand TEXT,
+                        Category TEXT,
+                        NormalizedProductName TEXT,
+                        NormalizedBrand TEXT,
+                        Availability TEXT
+                    )
+                    """);
+
+            try (ResultSet resultSet = statement.executeQuery("SELECT * FROM Product")) {
+                assertThatThrownBy(() -> productFactory.create(resultSet))
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("Product not found");
             }
         }
     }
