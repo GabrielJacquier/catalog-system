@@ -17,9 +17,21 @@ class ProductNormalizationServiceTest {
     }
 
     @Test
+    void shouldTrimLeadingAndTrailingWhitespace() {
+        assertThat(productNormalizationService.normalizeProductName("  iPhone 15 Pro  "))
+                .isEqualTo("iphone 15 pro");
+    }
+
+    @Test
     void shouldCollapseExtraWhitespaceInProductName() {
         assertThat(productNormalizationService.normalizeProductName("iPhone 15  Pro"))
                 .isEqualTo("iphone 15 pro");
+    }
+
+    @Test
+    void shouldConvertToLowerCase() {
+        assertThat(productNormalizationService.normalizeBrand("SAMSUNG"))
+                .isEqualTo("samsung");
     }
 
     @Test
@@ -29,16 +41,41 @@ class ProductNormalizationServiceTest {
     }
 
     @Test
-    void shouldNormalizeQuotesInProductName() {
+    void shouldNormalizeDoubleQuoteToSingleQuote() {
         assertThat(productNormalizationService.normalizeProductName("Tablet iPad Pro 12.9\""))
                 .isEqualTo("tablet ipad pro 12.9'");
+    }
+
+    @Test
+    void shouldNormalizeDoubleSingleQuoteToSingleQuote() {
         assertThat(productNormalizationService.normalizeProductName("Tablet iPad Pro 12.9''"))
                 .isEqualTo("tablet ipad pro 12.9'");
     }
 
     @Test
+    void shouldTreatNullProductNameAsEmptyString() {
+        assertThat(productNormalizationService.normalizeProductName(null)).isEmpty();
+    }
+
+    @Test
     void shouldTreatNullBrandAsEmptyString() {
         assertThat(productNormalizationService.normalizeBrand(null)).isEmpty();
+    }
+
+    @Test
+    void shouldTrimCategoryWhitespaceWithoutChangingCase() {
+        assertThat(productNormalizationService.normalizeCategory("  Electronics  "))
+                .isEqualTo("Electronics");
+    }
+
+    @Test
+    void shouldReturnNullForNullCategory() {
+        assertThat(productNormalizationService.normalizeCategory(null)).isNull();
+    }
+
+    @Test
+    void shouldReturnNullForBlankCategory() {
+        assertThat(productNormalizationService.normalizeCategory("   ")).isNull();
     }
 
     @Test
@@ -69,5 +106,23 @@ class ProductNormalizationServiceTest {
         );
 
         assertThat(productNormalizationService.isSameProduct(first, second)).isTrue();
+    }
+
+    @Test
+    void shouldDetectDifferentProductsByNormalizedFields() {
+        Product first = new Product(
+                "Smartphone Galaxy S23", "Samsung", "Electronics",
+                productNormalizationService.normalizeProductName("Smartphone Galaxy S23"),
+                productNormalizationService.normalizeBrand("Samsung"),
+                Availability.AVAILABLE
+        );
+        Product second = new Product(
+                "Smartphone Galaxy S24", "Samsung", "Electronics",
+                productNormalizationService.normalizeProductName("Smartphone Galaxy S24"),
+                productNormalizationService.normalizeBrand("Samsung"),
+                Availability.PENDING
+        );
+
+        assertThat(productNormalizationService.isSameProduct(first, second)).isFalse();
     }
 }

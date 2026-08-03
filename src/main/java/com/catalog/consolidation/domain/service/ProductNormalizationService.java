@@ -33,10 +33,26 @@ public class ProductNormalizationService {
         if (value == null) {
             return "";
         }
-        String normalized = value.trim().replaceAll("\\s+", " ");
-        normalized = Normalizer.normalize(normalized, Normalizer.Form.NFD)
+        String normalized = collapseWhitespace(value);
+        normalized = removeAccents(normalized);
+        normalized = normalizeQuotes(normalized);
+        return toLowerCase(normalized);
+    }
+
+    private String collapseWhitespace(String value) {
+        return value.trim().replaceAll("\\s+", " ");
+    }
+
+    private String removeAccents(String value) {
+        return Normalizer.normalize(value, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "");
-        normalized = normalized.replace("''", "'").replace("\"", "'");
-        return normalized.toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeQuotes(String value) {
+        return value.replace("''", "'").replace("\"", "'");
+    }
+
+    private String toLowerCase(String value) {
+        return value.toLowerCase(Locale.ROOT);
     }
 }
