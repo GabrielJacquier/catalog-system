@@ -99,7 +99,7 @@ class CatalogIntegrationAppIT {
     }
 
     @Test
-    void shouldInsertNewProductAsInactive() throws Exception {
+    void shouldInsertNewProductAsPending() throws Exception {
         SellerProduct sellerProduct = createSellerProduct(
                 "new-1", "MegaStore", "Brand New Product", "Acme", "Gadgets"
         );
@@ -155,6 +155,133 @@ class CatalogIntegrationAppIT {
     }
 
     @Test
+    void shouldKeepCanonicalFirstWinsAndStoreSellerSnapshotOnMatch() throws Exception {
+        SellerProduct listing = createSellerProduct(
+                "snap-1", "MegaStore", "Smartphone  Galaxy S23", "SAMSUNG", "Phones"
+        );
+
+        CatalogIntegrationResult result = catalogIntegrationApp.processProducts(List.of(listing));
+
+        assertThat(result.productsInserted()).isZero();
+        assertThat(result.sellerLinksCreated()).isEqualTo(1);
+
+        try (Connection connection = databaseConfig.getConnection();
+             Statement productStatement = connection.createStatement();
+             Statement sellerProductStatement = connection.createStatement();
+             ResultSet product = productStatement.executeQuery("""
+                     SELECT Name, Brand, Category, Availability
+                     FROM Product
+                     """);
+             ResultSet sellerProduct = sellerProductStatement.executeQuery("""
+                     SELECT SellerProductName, SellerBrand, SellerCategory
+                     FROM SellerProduct
+                     """)) {
+            assertThat(product.next()).isTrue();
+            assertThat(product.getString("Name")).isEqualTo("Smartphone Galaxy S23");
+            assertThat(product.getString("Brand")).isEqualTo("Samsung");
+            assertThat(product.getString("Category")).isEqualTo("Electronics");
+            assertThat(product.getString("Availability")).isEqualTo(Availability.AVAILABLE.name());
+            assertThat(product.next()).isFalse();
+
+            assertThat(sellerProduct.next()).isTrue();
+            assertThat(sellerProduct.getString("SellerProductName")).isEqualTo("Smartphone  Galaxy S23");
+            assertThat(sellerProduct.getString("SellerBrand")).isEqualTo("SAMSUNG");
+            assertThat(sellerProduct.getString("SellerCategory")).isEqualTo("Phones");
+            assertThat(sellerProduct.next()).isFalse();
+        }
+    }
+
+    @Test
+    void shouldTreatEmptyFeedAsNoOp() {
+        CatalogIntegrationResult result = catalogIntegrationApp.processProducts(List.of());
+
+        assertThat(result.totalProcessed()).isZero();
+        assertThat(result.productsInserted()).isZero();
+        assertThat(result.sellerLinksCreated()).isZero();
+        assertThat(result.sellerLinksSkipped()).isZero();
+        assertThat(result.itemsFailed()).isZero();
+    }
+
+    @Test
+    void shouldReuseSellerAcrossCasingAndAllowMultipleListingIds() throws Exception {
+        SellerProduct first = createSellerProduct(
+                "list-1", "MegaStore", "Brand New Product", "Acme", "Gadgets"
+        );
+        SellerProduct second = createSellerProduct(
+                "list-2", " megastore ", "Brand New Product", "Acme", "Gadgets"
+        );
+
+        catalogIntegrationApp.processProducts(List.of(first, second));
+
+        try (Connection connection = databaseConfig.getConnection();
+             Statement sellersStatement = connection.createStatement();
+             Statement productsStatement = connection.createStatement();
+             Statement linksStatement = connection.createStatement();
+             ResultSet sellers = sellersStatement.executeQuery("SELECT COUNT(*) AS total FROM Seller");
+             ResultSet products = productsStatement.executeQuery("SELECT COUNT(*) AS total FROM Product");
+             ResultSet links = linksStatement.executeQuery("SELECT COUNT(*) AS total FROM SellerProduct")) {
+            sellers.next();
+            products.next();
+            links.next();
+            assertThat(sellers.getInt("total")).isEqualTo(1);
+            assertThat(products.getInt("total")).isEqualTo(2);
+            assertThat(links.getInt("total")).isEqualTo(2);
+        }
+    }
+
+    // Anticipates unknown future feeds: null brands normalize to empty and can merge distinct listings by name.
+    @Test
+    void shouldMergeListingsWithNullBrandWhenNormalizedNamesMatch() throws Exception {
+        catalogIntegrationApp.processProducts(List.of(
+                createSellerProduct("null-brand-a", "StoreA", "Generic Widget", null, "Tools"),
+                createSellerProduct("null-brand-b", "StoreB", "Generic  Widget", null, "Hardware")
+        ));
+
+        try (Connection connection = databaseConfig.getConnection();
+             Statement productsStatement = connection.createStatement();
+             Statement linksStatement = connection.createStatement();
+             ResultSet products = productsStatement.executeQuery("""
+                     SELECT COUNT(*) AS total
+                     FROM Product
+                     WHERE NormalizedProductName = 'generic widget' AND NormalizedBrand = ''
+                     """);
+             ResultSet links = linksStatement.executeQuery(
+                     "SELECT COUNT(*) AS total FROM SellerProduct")) {
+            products.next();
+            links.next();
+            assertThat(products.getInt("total")).isEqualTo(1);
+            assertThat(links.getInt("total")).isEqualTo(2);
+        }
+    }
+
+    // Anticipates unknown future feeds: re-sending the same seller listing does not refresh snapshot columns today.
+    @Test
+    void shouldKeepOriginalSellerSnapshotWhenSameListingIsResentWithChangedFields() throws Exception {
+        catalogIntegrationApp.processProducts(List.of(
+                createSellerProduct("listing-1", "MegaStore", "Original Name", "Acme", "Gadgets")
+        ));
+        CatalogIntegrationResult secondRun = catalogIntegrationApp.processProducts(List.of(
+                createSellerProduct("listing-1", "MegaStore", "Updated Name", "Acme", "Accessories")
+        ));
+
+        assertThat(secondRun.sellerLinksCreated()).isZero();
+        assertThat(secondRun.sellerLinksSkipped()).isEqualTo(1);
+
+        try (Connection connection = databaseConfig.getConnection();
+             Statement statement = connection.createStatement();
+             ResultSet snapshot = statement.executeQuery("""
+                     SELECT SellerProductName, SellerCategory
+                     FROM SellerProduct
+                     WHERE SellerProductId = 'listing-1'
+                     """)) {
+            snapshot.next();
+            assertThat(snapshot.getString("SellerProductName")).isEqualTo("Original Name");
+            assertThat(snapshot.getString("SellerCategory")).isEqualTo("Gadgets");
+            assertThat(snapshot.next()).isFalse();
+        }
+    }
+
+    @Test
     void shouldWriteFailedItemToErrorsOutputAndContinueImportingRemainingOnes() throws Exception {
         Path errorsOutput = tempDir.resolve("failed-seller-products.json");
         Path input = tempDir.resolve("seller-products.json");
@@ -201,7 +328,14 @@ class CatalogIntegrationAppIT {
                 errorsOutput
         );
 
-        app.startApp(input);
+        CatalogIntegrationResult result = app.startApp(input);
+
+        assertThat(result.totalProcessed()).isEqualTo(2);
+        assertThat(result.itemsFailed()).isEqualTo(1);
+        assertThat(result.productsInserted()).isEqualTo(1);
+        assertThat(result.sellerLinksCreated()).isEqualTo(1);
+        assertThat(result.failures()).hasSize(1);
+        assertThat(result.failures().get(0).errorMessage()).isEqualTo("simulated persistence failure");
 
         assertThat(errorsOutput).exists();
         List<FailedSellerProductOutputJson> failedItems = new ObjectMapper().readValue(
@@ -234,6 +368,12 @@ class CatalogIntegrationAppIT {
                     "SELECT COUNT(*) AS total FROM SellerProduct WHERE SellerProductId = 'ok-1'")) {
                 sellerProducts.next();
                 assertThat(sellerProducts.getInt("total")).isEqualTo(1);
+            }
+            try (ResultSet sellers = statement.executeQuery(
+                    "SELECT COUNT(*) AS total FROM Seller WHERE NormalizedName = 'STOREA'")) {
+                sellers.next();
+                // Seller may already exist from the failed item before product persistence failed.
+                assertThat(sellers.getInt("total")).isEqualTo(1);
             }
         }
     }

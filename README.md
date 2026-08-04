@@ -72,11 +72,13 @@ For schema and upsert details, see [docs/architecture.md](docs/architecture.md).
 What we care about protecting:
 
 - Same product despite whitespace, accents, quotes, or case differences; null brand treated as empty; category ignored for matching
-- Existing catalog products are reused instead of duplicated when a seller listing matches
-- Several sellers can link to one canonical product; reprocessing the same feed does not duplicate products or links
-- Unexpected per-item failures are isolated so the rest of the batch continues; failed items are written as JSON with `ErrorMessage`
-- Schema migration can run twice without breaking
-- As an extra safeguard we also cover the `PENDING` / `AVAILABLE` behavior for new vs existing products
+- Existing catalog products are reused instead of duplicated when a seller listing matches; canonical Name/Category stay first-wins while `SellerProduct` keeps the seller snapshot
+- Several sellers can link to one canonical product; seller identity ignores casing; reprocessing the same feed does not duplicate products or links
+- Unexpected per-item failures are isolated so the rest of the batch continues; failed items are written as JSON with `ErrorMessage` (a Seller row may still exist from the failed item)
+- Empty feeds and unknown JSON fields are tolerated; malformed JSON fails at read time
+- Schema migration can run twice without breaking; new imports enter as `PENDING`
+
+Design probes locked by tests (acceptable today, candidates to revisit for unknown feeds): null brands can merge distinct items that share a normalized name; re-sent listings do not update the stored seller snapshot (`INSERT OR IGNORE`).
 
 ### Future evolutions
 

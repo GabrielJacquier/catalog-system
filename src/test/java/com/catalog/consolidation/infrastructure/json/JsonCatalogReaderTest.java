@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JsonCatalogReaderTest {
 
@@ -18,32 +19,7 @@ class JsonCatalogReaderTest {
     Path tempDir;
 
     @Test
-    void shouldReadCompleteSellerProduct() throws Exception {
-        Path input = writeJson("""
-                [
-                  {
-                    "Id": "seller-1",
-                    "SellerName": "MegaStore",
-                    "Name": "Smartphone Galaxy S23",
-                    "Brand": "Samsung",
-                    "Category": "Electronics"
-                  }
-                ]
-                """);
-
-        List<SellerProduct> products = reader.read(input);
-
-        assertThat(products).hasSize(1);
-        SellerProduct product = products.get(0);
-        assertThat(product.sellerProductId()).isEqualTo("seller-1");
-        assertThat(product.seller().getName()).isEqualTo("MegaStore");
-        assertThat(product.sellerProductName()).isEqualTo("Smartphone Galaxy S23");
-        assertThat(product.sellerBrand()).isEqualTo("Samsung");
-        assertThat(product.sellerCategory()).isEqualTo("Electronics");
-    }
-
-    @Test
-    void shouldIgnoreUnknownFields() throws Exception {
+    void shouldReadSellerProductAndIgnoreUnknownFields() throws Exception {
         Path input = writeJson("""
                 [
                   {
@@ -92,8 +68,17 @@ class JsonCatalogReaderTest {
         assertThat(product.sellerCategory()).isNull();
     }
 
+    @Test
+    void shouldReadEmptyArrayAndFailOnMalformedJson() throws Exception {
+        assertThat(reader.read(writeJson("[]"))).isEmpty();
+
+        Path malformed = writeJson("{ not-valid-json");
+        assertThatThrownBy(() -> reader.read(malformed))
+                .isInstanceOf(Exception.class);
+    }
+
     private Path writeJson(String content) throws Exception {
-        Path file = tempDir.resolve("seller-products.json");
+        Path file = tempDir.resolve("seller-products-" + System.nanoTime() + ".json");
         Files.writeString(file, content);
         return file;
     }

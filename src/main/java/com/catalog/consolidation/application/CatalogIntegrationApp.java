@@ -31,7 +31,7 @@ public class CatalogIntegrationApp {
         this.errorsOutputPath = errorsOutputPath;
     }
 
-    public void startApp(Path inputPath) throws Exception {
+    public CatalogIntegrationResult startApp(Path inputPath) throws Exception {
         System.out.println("Stage 1: Preparing database...");
         schemaMigration.run();
         System.out.println("Stage 1 completed.");
@@ -47,6 +47,7 @@ public class CatalogIntegrationApp {
         }
 
         printSummary(result);
+        return result;
     }
 
     CatalogIntegrationResult processProducts(List<SellerProduct> sellerProducts) {

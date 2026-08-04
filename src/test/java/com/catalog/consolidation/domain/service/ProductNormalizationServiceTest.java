@@ -136,4 +136,26 @@ class ProductNormalizationServiceTest {
 
         assertThat(productNormalizationService.isSameProduct(first, second)).isFalse();
     }
+
+    @Test
+    void shouldDocumentCurrentLimitsForBlankBrandDistinctBrandsAndPunctuation() {
+        assertThat(productNormalizationService.normalizeBrand("   ")).isEmpty();
+
+        Product samsung = new Product(
+                "Galaxy S23", "Samsung", "Electronics",
+                productNormalizationService.normalizeProductName("Galaxy S23"),
+                productNormalizationService.normalizeBrand("Samsung"),
+                Availability.AVAILABLE
+        );
+        Product apple = new Product(
+                "Galaxy S23", "Apple", "Electronics",
+                productNormalizationService.normalizeProductName("Galaxy S23"),
+                productNormalizationService.normalizeBrand("Apple"),
+                Availability.PENDING
+        );
+        assertThat(productNormalizationService.isSameProduct(samsung, apple)).isFalse();
+
+        assertThat(productNormalizationService.normalizeProductName("Router® Wi-Fi & Mesh"))
+                .isEqualTo("router® wi-fi & mesh");
+    }
 }

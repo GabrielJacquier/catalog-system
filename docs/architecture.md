@@ -135,8 +135,21 @@ persists those failures as input-shaped JSON plus an `ErrorMessage` field.
 
 ### Seller conflicts
 
-- Same seller + same `SellerProductId` → skipped (`INSERT OR IGNORE`)
-- Same seller + different product for same ID → logged as inconsistent (unlikely in dataset)
+- Same seller + same `SellerProductId` → skipped (`INSERT OR IGNORE`); snapshot columns are not updated on re-send
+- Same seller + different product for same ID → silently ignored today (no inconsistency log)
+
+### Behaviors confirmed by design-probe tests
+
+These are intentional limits of the current structure (not bugs unless product policy changes):
+
+| Behavior | Current outcome | Possible follow-up |
+|----------|-----------------|--------------------|
+| Null/blank brand on same normalized name | One canonical product | Require brand or add EAN/SKU |
+| Re-send listing with changed name/category | Old snapshot kept | `UPDATE` seller listing |
+| Failure after Seller upsert | Seller row may remain | Per-item transaction / compensation |
+| Missing Name / SellerName / Id | Still processed (no validation) | Reject into `itemsFailed` without throwing |
+
+Synonyms (`Router` vs `Roteador`) remain a documented design choice in Future improvements, without a dedicated probe test.
 
 ## Infrastructure conventions
 
@@ -151,3 +164,5 @@ DDL in migrations may be static strings. Data backfill uses prepared statements.
 - Synonym dictionary for cross-language product names
 - Activation workflow for `PENDING` products
 - Additional product identifiers (SKU, EAN) for deduplication
+- Input validation for required feed fields
+- Per-item transactional upsert (Seller + Product + link)
