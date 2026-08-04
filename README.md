@@ -2,7 +2,9 @@
 
 Marketplace catalog consolidation: ingest seller product feeds, deduplicate canonical products by normalized name and brand, and link sellers without changing the existing production catalog.
 
-The job runs in two stages — prepare the schema, then consolidate the feed into a working copy (`catalog-updated.db`). Stack: Java 17, JDBC/SQLite (no ORM), Jackson, Maven, Docker.
+The job runs in two stages — prepare the schema, then consolidate the feed into a working copy (`catalog-updated.db`).
+
+**Stack:** Java 17 · JDBC / SQLite (no ORM) · Jackson · Maven · Docker
 
 ## Solution
 
