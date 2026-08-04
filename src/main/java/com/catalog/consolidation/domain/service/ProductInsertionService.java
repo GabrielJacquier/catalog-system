@@ -27,6 +27,14 @@ public class ProductInsertionService {
     }
 
     public ProductInsertionResult insert(SellerProduct sellerProduct) {
+        try {
+            return insertInternal(sellerProduct);
+        } catch (Exception e) {
+            return ProductInsertionResult.failure(sellerProduct, e.getMessage());
+        }
+    }
+
+    private ProductInsertionResult insertInternal(SellerProduct sellerProduct) {
         Seller sellerCandidate = buildSeller(sellerProduct);
         Seller persistedSeller = sellerRepository.insertIfNotExistsAndFetch(sellerCandidate);
         SellerProduct linkedSellerProduct = new SellerProduct(

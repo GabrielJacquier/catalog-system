@@ -9,15 +9,20 @@ import com.catalog.consolidation.domain.repository.SellerRepository;
 import com.catalog.consolidation.domain.service.ProductInsertionService;
 import com.catalog.consolidation.domain.service.ProductNormalizationService;
 import com.catalog.consolidation.infrastructure.config.DatabaseConfig;
+import com.catalog.consolidation.infrastructure.json.FailedSellerProductOutputJson;
 import com.catalog.consolidation.infrastructure.json.JsonCatalogReader;
+import com.catalog.consolidation.infrastructure.json.JsonFailedCatalogWriter;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SchemaMigration;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SqliteProductRepository;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SqliteSellerProductRepository;
 import com.catalog.consolidation.infrastructure.persistence.sqlite.SqliteSellerRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -56,7 +61,9 @@ class CatalogIntegrationAppIT {
         catalogIntegrationApp = new CatalogIntegrationApp(
                 schemaMigration,
                 new JsonCatalogReader(),
-                productInsertionService
+                productInsertionService,
+                new JsonFailedCatalogWriter(),
+                tempDir.resolve("failed-seller-products.json")
         );
     }
 
@@ -145,6 +152,90 @@ class CatalogIntegrationAppIT {
         assertThat(secondRun.productsInserted()).isZero();
         assertThat(secondRun.sellerLinksCreated()).isZero();
         assertThat(secondRun.sellerLinksSkipped()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldWriteFailedItemToErrorsOutputAndContinueImportingRemainingOnes() throws Exception {
+        Path errorsOutput = tempDir.resolve("failed-seller-products.json");
+        Path input = tempDir.resolve("seller-products.json");
+        Files.writeString(input, """
+                [
+                  {
+                    "Id": "fail-1",
+                    "SellerName": "StoreA",
+                    "Name": "Broken Product",
+                    "Brand": "Acme",
+                    "Category": "Gadgets"
+                  },
+                  {
+                    "Id": "ok-1",
+                    "SellerName": "StoreB",
+                    "Name": "Good Product",
+                    "Brand": "Acme",
+                    "Category": "Gadgets"
+                  }
+                ]
+                """);
+
+        ProductNormalizationService productNormalizationService = new ProductNormalizationService();
+        SchemaMigration schemaMigration = new SchemaMigration(databaseConfig, productNormalizationService);
+        ProductRepository realProductRepository = new SqliteProductRepository(databaseConfig);
+        ProductRepository productRepository = product -> {
+            if ("Broken Product".equals(product.getName())) {
+                throw new IllegalStateException("simulated persistence failure");
+            }
+            return realProductRepository.insertIfNotExistsAndFetch(product);
+        };
+        ProductInsertionService productInsertionService = new ProductInsertionService(
+                productNormalizationService,
+                new SqliteSellerRepository(databaseConfig),
+                productRepository,
+                new SqliteSellerProductRepository(databaseConfig)
+        );
+
+        CatalogIntegrationApp app = new CatalogIntegrationApp(
+                schemaMigration,
+                new JsonCatalogReader(),
+                productInsertionService,
+                new JsonFailedCatalogWriter(),
+                errorsOutput
+        );
+
+        app.startApp(input);
+
+        assertThat(errorsOutput).exists();
+        List<FailedSellerProductOutputJson> failedItems = new ObjectMapper().readValue(
+                errorsOutput.toFile(),
+                new TypeReference<>() {
+                }
+        );
+        assertThat(failedItems).hasSize(1);
+        FailedSellerProductOutputJson failedItem = failedItems.get(0);
+        assertThat(failedItem.getId()).isEqualTo("fail-1");
+        assertThat(failedItem.getSellerName()).isEqualTo("StoreA");
+        assertThat(failedItem.getName()).isEqualTo("Broken Product");
+        assertThat(failedItem.getBrand()).isEqualTo("Acme");
+        assertThat(failedItem.getCategory()).isEqualTo("Gadgets");
+        assertThat(failedItem.getErrorMessage()).isEqualTo("simulated persistence failure");
+
+        try (Connection connection = databaseConfig.getConnection();
+             Statement statement = connection.createStatement()) {
+            try (ResultSet goodProduct = statement.executeQuery(
+                    "SELECT COUNT(*) AS total FROM Product WHERE Name = 'Good Product'")) {
+                goodProduct.next();
+                assertThat(goodProduct.getInt("total")).isEqualTo(1);
+            }
+            try (ResultSet brokenProduct = statement.executeQuery(
+                    "SELECT COUNT(*) AS total FROM Product WHERE Name = 'Broken Product'")) {
+                brokenProduct.next();
+                assertThat(brokenProduct.getInt("total")).isZero();
+            }
+            try (ResultSet sellerProducts = statement.executeQuery(
+                    "SELECT COUNT(*) AS total FROM SellerProduct WHERE SellerProductId = 'ok-1'")) {
+                sellerProducts.next();
+                assertThat(sellerProducts.getInt("total")).isEqualTo(1);
+            }
+        }
     }
 
     private void createSeedDatabase(Path databasePath) throws Exception {

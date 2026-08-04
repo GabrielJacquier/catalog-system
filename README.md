@@ -10,9 +10,9 @@ The job runs in two stages — prepare the schema, then consolidate the feed int
 
 The layout is a simplified take on hexagonal architecture: domain rules stay isolated, and the outside world (SQLite, JSON, CLI) plugs in through adapters.
 
-- **`application`** — starts the job: builds dependencies, runs schema preparation, then asks the domain to process each seller listing. It also prints the processing summary (how many products were created, how many seller links were created or skipped).
-- **`domain`** — where the business rules live: product/seller modeling, name and brand normalization for matching, and the orchestration that creates or reuses a `Product` and a `Seller` and links them through `SellerProduct`.
-- **`infrastructure`** — talks to the outside world: persists and queries products, sellers, and seller links in SQLite, applies the schema migration, and loads seller listings from the JSON feed.
+- **`application`** — starts the job: builds dependencies, runs schema preparation, then asks the domain to process each seller listing. It also prints the processing summary (how many products were created, how many seller links were created or skipped, how many items failed) and, when needed, writes failed items to a JSON file (`--errors-output`).
+- **`domain`** — where the business rules live: product/seller modeling, name and brand normalization for matching, and the orchestration that creates or reuses a `Product` and a `Seller` and links them through `SellerProduct`. Unexpected per-item errors are captured as failure results so the batch can continue.
+- **`infrastructure`** — talks to the outside world: persists and queries products, sellers, and seller links in SQLite, applies the schema migration, loads seller listings from the JSON feed, and writes failed listings back out as JSON.
 
 **Stage 1 — Schema migration**
 
@@ -45,7 +45,11 @@ sequenceDiagram
     Infra-->>Dom: persisted rows
     Dom->>Infra: link SellerProduct with seller raw values
     Infra-->>Dom: linked or skipped
-    Dom-->>App: insertion result
+    Dom-->>App: insertion result (success or failure)
+  end
+
+  opt any failures
+    App->>Infra: write failed-seller-products.json
   end
 
   App->>App: print summary
@@ -60,6 +64,7 @@ For schema and upsert details, see [docs/architecture.md](docs/architecture.md).
 - **First-wins upsert:** `ON CONFLICT DO NOTHING`, then `SELECT` — keeps writes idempotent and safer under concurrent inserts (the unique index decides the winner; losers just read the existing row)
 - **Seller raw values:** original name, brand, and category kept on `SellerProduct` — enables later checks that the canonical product still matches what each seller expects, and opens the door to refining the catalog name from how multiple sellers describe the same item
 - **Idempotency:** unique constraints on normalized product keys and on seller–listing identity so reprocessing the same feed is safe
+- **Continue-on-error:** unexpected failures on one listing do not abort the batch; failed items are written to `--errors-output` (default `failed-seller-products.json`) in the same shape as the input plus `ErrorMessage`
 - **SQL safety:** all runtime queries use `PreparedStatement` (no string concatenation)
 
 ### Test coverage
@@ -69,6 +74,7 @@ What we care about protecting:
 - Same product despite whitespace, accents, quotes, or case differences; null brand treated as empty; category ignored for matching
 - Existing catalog products are reused instead of duplicated when a seller listing matches
 - Several sellers can link to one canonical product; reprocessing the same feed does not duplicate products or links
+- Unexpected per-item failures are isolated so the rest of the batch continues; failed items are written as JSON with `ErrorMessage`
 - Schema migration can run twice without breaking
 - As an extra safeguard we also cover the `PENDING` / `AVAILABLE` behavior for new vs existing products
 
@@ -87,7 +93,7 @@ What we care about protecting:
 docker compose up --build
 ```
 
-**Expect:** a console summary and **`catalog-updated.db`** at the project root. Later runs always reuse that same file; delete it if you want to start again from the original seed.
+**Expect:** a console summary and **`catalog-updated.db`** at the project root. If any listing fails, also **`failed-seller-products.json`** (override with `--errors-output`). Later runs always reuse the same database file; delete it if you want to start again from the original seed.
 
 ### Run tests
 

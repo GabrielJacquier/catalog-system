@@ -66,7 +66,8 @@ infrastructure/      → implements domain repository interfaces (JDBC), JSON re
                        SchemaMigration
 application/         → Application (composition root, CLI) creates all dependencies and hands them
                        to CatalogIntegrationApp, which runs the migration, reads the catalog,
-                       processes products (counters) and prints the summary; CatalogIntegrationResult
+                       processes products (counters, continue-on-error), writes failed items JSON,
+                       and prints the summary; CatalogIntegrationResult
 ```
 
 Dependency direction: `application` knows both `domain` and `infrastructure` and wires concrete
@@ -123,9 +124,14 @@ Per `SellerProduct` item, `ProductInsertionService.insert` (domain) orchestrates
 
 `CatalogIntegrationApp.startApp` (application) orchestrates the whole flow: runs the schema migration,
 reads the catalog via `JsonCatalogReader`, delegates to `processProducts` (which loops over the inputs,
-calls `ProductInsertionService.insert` for each, and only counts the outcome — `productsInserted`,
-`sellerLinksCreated`, `sellerLinksSkipped`), and finally prints the summary. It has no business logic
-of its own — `Application` (the CLI entrypoint) only builds every dependency and hands them to it.
+calls `ProductInsertionService.insert` for each, and counts the outcome — `productsInserted`,
+`sellerLinksCreated`, `sellerLinksSkipped`, `itemsFailed`), writes failed items to a JSON file when any
+exist (`--errors-output`, default `failed-seller-products.json`), and finally prints the summary. It has no
+business logic of its own — `Application` (the CLI entrypoint) only builds every dependency and hands them to it.
+
+Per-item failures: `ProductInsertionService.insert` catches unexpected exceptions, returns
+`ProductInsertionResult.failure(source, errorMessage)` without aborting the batch, and the application
+persists those failures as input-shaped JSON plus an `ErrorMessage` field.
 
 ### Seller conflicts
 
