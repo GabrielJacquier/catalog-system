@@ -113,13 +113,13 @@ First-wins: existing production rows are never overwritten.
 
 ### Import flow
 
-Per `SellerProduct` item, `ProductInsertionService.insert` (domain) orchestrates:
+Per `SellerProduct` item (external seller feed entry), `ProductInsertionService.insert` (domain) orchestrates:
 
 1. `buildSeller(sellerProduct)` → normalize seller name, then `SellerRepository.insertIfNotExistsAndFetch`
-2. Rebuild `SellerProduct` with the persisted `Seller` (id filled)
-3. `buildProduct(sellerProduct)` → `Product` candidate (`PENDING`), using `ProductNormalizationService`
-4. `ProductRepository.insertIfNotExistsAndFetch` → `ProductInsertionResult` (`productLinkedToSeller = false`)
-5. `SellerProductRepository.link` with the `SellerProduct` seller snapshot (`SellerId`)
+2. `buildProduct(sellerProduct)` → `Product` candidate (`PENDING`), using `ProductNormalizationService`
+3. `ProductRepository.insertIfNotExistsAndFetch` → `ProductInsertionResult`; persisted product is `productFetched`
+4. Build `ProductLinkedToSeller` with persisted `Seller`, `productFetched`, and seller snapshot fields from the input
+5. `SellerProductRepository.link(productLinkedToSeller)`
 6. Returns `result.withProductLinkedToSeller(linked)`
 
 `CatalogIntegrationApp.startApp` (application) orchestrates the whole flow: runs the schema migration,

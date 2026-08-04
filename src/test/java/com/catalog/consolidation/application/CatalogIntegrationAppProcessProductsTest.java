@@ -51,7 +51,7 @@ class CatalogIntegrationAppProcessProductsTest {
                     persisted.setId(10L);
                     return new ProductInsertionResult(persisted, true, false);
                 },
-                (productId, sellerProduct) -> true
+                productLinkedToSeller -> true
         );
 
         CatalogIntegrationApp app = new CatalogIntegrationApp(

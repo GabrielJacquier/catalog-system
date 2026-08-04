@@ -23,7 +23,7 @@ class ProductInsertionServiceTest {
                 product -> {
                     throw new IllegalStateException("db unavailable");
                 },
-                (productId, sellerProduct) -> true
+                productLinkedToSeller -> true
         );
 
         ProductInsertionResult result = service.insert(input);
@@ -45,7 +45,7 @@ class ProductInsertionServiceTest {
                 product -> {
                     throw new RuntimeException();
                 },
-                (productId, sellerProduct) -> true
+                productLinkedToSeller -> true
         );
 
         ProductInsertionResult result = service.insert(input);
@@ -64,7 +64,7 @@ class ProductInsertionServiceTest {
                 new ProductNormalizationService(),
                 new InMemorySellerRepository(),
                 new SelectiveProductRepository(),
-                (productId, sellerProduct) -> true
+                productLinkedToSeller -> true
         );
 
         ProductInsertionResult failure = service.insert(failing);

@@ -3,6 +3,7 @@ package com.catalog.consolidation.domain.service;
 import com.catalog.consolidation.domain.model.Availability;
 import com.catalog.consolidation.domain.model.Product;
 import com.catalog.consolidation.domain.model.ProductInsertionResult;
+import com.catalog.consolidation.domain.model.ProductLinkedToSeller;
 import com.catalog.consolidation.domain.model.Seller;
 import com.catalog.consolidation.domain.model.SellerProduct;
 import com.catalog.consolidation.domain.repository.ProductRepository;
@@ -36,21 +37,24 @@ public class ProductInsertionService {
 
     private ProductInsertionResult insertInternal(SellerProduct sellerProduct) {
         Seller sellerCandidate = buildSeller(sellerProduct);
-        Seller persistedSeller = sellerRepository.insertIfNotExistsAndFetch(sellerCandidate);
-        SellerProduct linkedSellerProduct = new SellerProduct(
-                persistedSeller,
+        Seller sellerFetched = sellerRepository.insertIfNotExistsAndFetch(sellerCandidate);
+
+        Product candidate = buildProduct(sellerProduct);
+        ProductInsertionResult result = productRepository.insertIfNotExistsAndFetch(candidate);
+        Product productFetched = result.product();
+
+        ProductLinkedToSeller productLinkedToSeller = new ProductLinkedToSeller(
+                sellerFetched,
+                productFetched,
                 sellerProduct.sellerProductId(),
                 sellerProduct.sellerProductName(),
                 sellerProduct.sellerBrand(),
                 sellerProduct.sellerCategory()
         );
 
-        Product candidate = buildProduct(linkedSellerProduct);
-        ProductInsertionResult result = productRepository.insertIfNotExistsAndFetch(candidate);
+        boolean linked = sellerProductRepository.link(productLinkedToSeller);
 
-        boolean productLinkedToSeller = sellerProductRepository.link(result.product().getId(), linkedSellerProduct);
-
-        return result.withProductLinkedToSeller(productLinkedToSeller);
+        return result.withProductLinkedToSeller(linked);
     }
 
     private Seller buildSeller(SellerProduct sellerProduct) {
