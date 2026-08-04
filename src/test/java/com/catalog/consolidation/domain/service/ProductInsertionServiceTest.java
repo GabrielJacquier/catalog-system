@@ -9,70 +9,99 @@ import com.catalog.consolidation.domain.model.SellerProduct;
 import com.catalog.consolidation.domain.repository.ProductRepository;
 import com.catalog.consolidation.domain.repository.SellerProductRepository;
 import com.catalog.consolidation.domain.repository.SellerRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class ProductInsertionServiceTest {
 
-    @Test
-    void shouldInsertMatchAndPropagateLinkOutcome() {
-        InMemorySellerRepository sellers = new InMemorySellerRepository();
-        InMemoryProductRepository products = new InMemoryProductRepository();
-        InMemorySellerProductRepository links = new InMemorySellerProductRepository();
-        ProductInsertionService service = new ProductInsertionService(
+    @Mock
+    private SellerRepository sellerRepository;
+
+    @Mock
+    private ProductRepository productRepository;
+
+    @Mock
+    private SellerProductRepository sellerProductRepository;
+
+    private ProductInsertionService productInsertionService;
+
+    @BeforeEach
+    void setUp() {
+        productInsertionService = new ProductInsertionService(
                 new ProductNormalizationService(),
-                sellers,
-                products,
-                links
+                sellerRepository,
+                productRepository,
+                sellerProductRepository
         );
+    }
 
-        SellerProduct first = sellerProduct("id-1", "MegaStore", "Good Product", "Acme", "Gadgets");
-        ProductInsertionResult inserted = service.insert(first);
+    @Test
+    void shouldInsertNewProductThenSkipDuplicateLinkAndReuseMatchForAnotherSeller() {
+        Seller megaStore = seller(1L, "MegaStore", "MEGASTORE");
+        Seller otherStore = seller(2L, "OtherStore", "OTHERSTORE");
+        Product canonical = product(10L, "Good Product", "Acme", "Gadgets", "good product", "acme");
 
+        when(sellerRepository.insertIfNotExistsAndFetch(any(Seller.class)))
+                .thenReturn(megaStore, megaStore, otherStore);
+        when(productRepository.insertIfNotExistsAndFetch(any(Product.class)))
+                .thenReturn(
+                        new ProductInsertionResult(canonical, true, false),
+                        new ProductInsertionResult(canonical, false, false),
+                        new ProductInsertionResult(canonical, false, false)
+                );
+        when(sellerProductRepository.link(any(ProductLinkedToSeller.class)))
+                .thenReturn(true, false, true);
+
+        ProductInsertionResult inserted = productInsertionService.insert(
+                sellerProduct("id-1", "MegaStore", "Good Product", "Acme", "Gadgets")
+        );
         assertThat(inserted.failed()).isFalse();
         assertThat(inserted.inserted()).isTrue();
         assertThat(inserted.productLinkedToSeller()).isTrue();
         assertThat(inserted.product().getAvailability()).isEqualTo(Availability.PENDING);
 
-        SellerProduct sameListing = sellerProduct("id-1", "MegaStore", "Good Product", "Acme", "Gadgets");
-        ProductInsertionResult skippedLink = service.insert(sameListing);
-
+        ProductInsertionResult skippedLink = productInsertionService.insert(
+                sellerProduct("id-1", "MegaStore", "Good Product", "Acme", "Gadgets")
+        );
         assertThat(skippedLink.failed()).isFalse();
         assertThat(skippedLink.inserted()).isFalse();
         assertThat(skippedLink.productLinkedToSeller()).isFalse();
-        assertThat(skippedLink.product().getId()).isEqualTo(inserted.product().getId());
+        assertThat(skippedLink.product().getId()).isEqualTo(10L);
 
-        SellerProduct otherSeller = sellerProduct("id-2", "OtherStore", "Good  Product", "Acme", "Other");
-        ProductInsertionResult matched = service.insert(otherSeller);
-
+        ProductInsertionResult matched = productInsertionService.insert(
+                sellerProduct("id-2", "OtherStore", "Good  Product", "Acme", "Other")
+        );
         assertThat(matched.failed()).isFalse();
         assertThat(matched.inserted()).isFalse();
         assertThat(matched.productLinkedToSeller()).isTrue();
-        assertThat(matched.product().getId()).isEqualTo(inserted.product().getId());
-        assertThat(sellers.size()).isEqualTo(2);
-        assertThat(products.size()).isEqualTo(1);
-        assertThat(links.size()).isEqualTo(2);
+        assertThat(matched.product().getId()).isEqualTo(10L);
+
+        ArgumentCaptor<ProductLinkedToSeller> linkCaptor = ArgumentCaptor.forClass(ProductLinkedToSeller.class);
+        verify(sellerProductRepository, times(3)).link(linkCaptor.capture());
+        assertThat(linkCaptor.getAllValues()).extracting(ProductLinkedToSeller::sellerProductId)
+                .containsExactly("id-1", "id-1", "id-2");
     }
 
     @Test
     void shouldReturnFailureWhenRepositoryThrows() {
         SellerProduct input = sellerProduct("fail-1", "MegaStore", "Broken Product", "Acme", "Gadgets");
-        ProductInsertionService service = new ProductInsertionService(
-                new ProductNormalizationService(),
-                new InMemorySellerRepository(),
-                product -> {
-                    throw new IllegalStateException("db unavailable");
-                },
-                productLinkedToSeller -> true
-        );
+        when(sellerRepository.insertIfNotExistsAndFetch(any(Seller.class)))
+                .thenReturn(seller(1L, "MegaStore", "MEGASTORE"));
+        when(productRepository.insertIfNotExistsAndFetch(any(Product.class)))
+                .thenThrow(new IllegalStateException("db unavailable"));
 
-        ProductInsertionResult result = service.insert(input);
+        ProductInsertionResult result = productInsertionService.insert(input);
 
         assertThat(result.failed()).isTrue();
         assertThat(result.errorMessage()).isEqualTo("db unavailable");
@@ -85,16 +114,12 @@ class ProductInsertionServiceTest {
     @Test
     void shouldKeepNullErrorMessageWhenExceptionHasNoMessage() {
         SellerProduct input = sellerProduct("fail-2", "MegaStore", "Broken Product", "Acme", "Gadgets");
-        ProductInsertionService service = new ProductInsertionService(
-                new ProductNormalizationService(),
-                new InMemorySellerRepository(),
-                product -> {
-                    throw new RuntimeException();
-                },
-                productLinkedToSeller -> true
-        );
+        when(sellerRepository.insertIfNotExistsAndFetch(any(Seller.class)))
+                .thenReturn(seller(1L, "MegaStore", "MEGASTORE"));
+        when(productRepository.insertIfNotExistsAndFetch(any(Product.class)))
+                .thenThrow(new RuntimeException());
 
-        ProductInsertionResult result = service.insert(input);
+        ProductInsertionResult result = productInsertionService.insert(input);
 
         assertThat(result.failed()).isTrue();
         assertThat(result.errorMessage()).isNull();
@@ -105,67 +130,16 @@ class ProductInsertionServiceTest {
         return new SellerProduct(new Seller(sellerName, null), id, name, brand, category);
     }
 
-    private static final class InMemorySellerRepository implements SellerRepository {
-        private long nextId = 1L;
-        private final Map<String, Seller> byNormalizedName = new HashMap<>();
-
-        @Override
-        public Seller insertIfNotExistsAndFetch(Seller seller) {
-            Seller existing = byNormalizedName.get(seller.getNormalizedName());
-            if (existing != null) {
-                return existing;
-            }
-            Seller persisted = new Seller(seller.getName(), seller.getNormalizedName());
-            persisted.setId(nextId++);
-            byNormalizedName.put(persisted.getNormalizedName(), persisted);
-            return persisted;
-        }
-
-        int size() {
-            return byNormalizedName.size();
-        }
+    private static Seller seller(long id, String name, String normalizedName) {
+        Seller seller = new Seller(name, normalizedName);
+        seller.setId(id);
+        return seller;
     }
 
-    private static final class InMemoryProductRepository implements ProductRepository {
-        private long nextId = 1L;
-        private final Map<String, Product> byKey = new HashMap<>();
-
-        @Override
-        public ProductInsertionResult insertIfNotExistsAndFetch(Product product) {
-            String key = product.getNormalizedProductName() + "|" + product.getNormalizedBrand();
-            Product existing = byKey.get(key);
-            if (existing != null) {
-                return new ProductInsertionResult(existing, false, false);
-            }
-            Product persisted = new Product(
-                    product.getName(),
-                    product.getBrand(),
-                    product.getCategory(),
-                    product.getNormalizedProductName(),
-                    product.getNormalizedBrand(),
-                    product.getAvailability()
-            );
-            persisted.setId(nextId++);
-            byKey.put(key, persisted);
-            return new ProductInsertionResult(persisted, true, false);
-        }
-
-        int size() {
-            return byKey.size();
-        }
-    }
-
-    private static final class InMemorySellerProductRepository implements SellerProductRepository {
-        private final Set<String> linkedKeys = new HashSet<>();
-
-        @Override
-        public boolean link(ProductLinkedToSeller productLinkedToSeller) {
-            String key = productLinkedToSeller.seller().getId() + "|" + productLinkedToSeller.sellerProductId();
-            return linkedKeys.add(key);
-        }
-
-        int size() {
-            return linkedKeys.size();
-        }
+    private static Product product(long id, String name, String brand, String category,
+                                   String normalizedName, String normalizedBrand) {
+        Product product = new Product(name, brand, category, normalizedName, normalizedBrand, Availability.PENDING);
+        product.setId(id);
+        return product;
     }
 }

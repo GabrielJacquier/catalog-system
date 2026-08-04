@@ -138,7 +138,7 @@ class ProductNormalizationServiceTest {
     }
 
     @Test
-    void shouldDocumentCurrentLimitsForBlankBrandDistinctBrandsAndPunctuation() {
+    void shouldTreatBlankBrandAsEmptyAndDistinctBrandsAsDifferentProducts() {
         assertThat(productNormalizationService.normalizeBrand("   ")).isEmpty();
 
         Product samsung = new Product(
@@ -154,7 +154,10 @@ class ProductNormalizationServiceTest {
                 Availability.PENDING
         );
         assertThat(productNormalizationService.isSameProduct(samsung, apple)).isFalse();
+    }
 
+    @Test
+    void shouldKeepTrademarkAndAmpersandCharactersWhenNormalizingProductName() {
         assertThat(productNormalizationService.normalizeProductName("Router® Wi-Fi & Mesh"))
                 .isEqualTo("router® wi-fi & mesh");
     }
