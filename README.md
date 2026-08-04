@@ -1,258 +1,111 @@
 # Catalog Consolidation System
 
-Marketplace catalog consolidation: ingest seller product feeds, deduplicate by normalized name and brand, and link sellers to canonical products without impacting the existing production catalog.
+Marketplace catalog consolidation: ingest seller product feeds, deduplicate canonical products by normalized name and brand, and link sellers without changing the existing production catalog.
 
-> **For reviewers / interviewers:** this README is a step-by-step guide to build, test, run, and inspect results end-to-end.
+The job runs in two stages — prepare the schema, then consolidate the feed into a working copy (`catalog-updated.db`). Stack: Java 17, JDBC/SQLite (no ORM), Jackson, Maven, Docker.
 
-## Two-stage flow
+## Solution
 
-1. **Stage 1 — Prepare database**: additive schema migration on the production `Product` table (`Availability`, normalized columns) and recreation of `SellerProduct`.
-2. **Stage 2 — Consolidate catalog**: read `seller-products.json`, upsert products, and create seller links with original seller snapshots.
+### Architecture
 
-New products are inserted as `PENDING`. Existing production products remain `AVAILABLE`.
+The layout is a simplified take on hexagonal architecture: domain rules stay isolated, and the outside world (SQLite, JSON, CLI) plugs in through adapters.
 
-## Prerequisites
+- **`application`** — starts the job: builds dependencies, runs schema preparation, then asks the domain to process each seller listing. It also prints the processing summary (how many products were created, how many seller links were created or skipped).
+- **`domain`** — where the business rules live: product/seller modeling, name and brand normalization for matching, and the orchestration that creates or reuses a `Product` and a `Seller` and links them through `SellerProduct`.
+- **`infrastructure`** — talks to the outside world: persists and queries products, sellers, and seller links in SQLite, applies the schema migration, and loads seller listings from the JSON feed.
 
-- **Option A (recommended):** Docker with Compose
-- **Option B:** Java 17+ and Maven 3.9+
+**Stage 1 — Schema migration**
 
-## Project layout
+```mermaid
+sequenceDiagram
+  participant App as application
+  participant Infra as infrastructure
 
+  App->>Infra: prepare schema
+  Infra->>Infra: adjust schemas (Availability and normalized columns on Product, Seller table, SellerProduct with seller raw values)
+  Infra->>Infra: backfill existing products (normalized keys + AVAILABLE by default)
+  Infra-->>App: migration done
 ```
-catalog-system/
-├── samples/catalog.db            # seed SQLite database (production catalog)
-├── samples/seller-products.json  # seller product feed
-├── src/                          # Java source (layered: domain / infrastructure / application)
-├── docs/architecture.md          # design decisions
-├── Dockerfile
-└── docker-compose.yml
+
+**Stage 2 — Product creation**
+
+```mermaid
+sequenceDiagram
+  participant App as application
+  participant Dom as domain
+  participant Infra as infrastructure
+
+  App->>Infra: load seller-products.json
+  Infra-->>App: seller listings
+
+  loop each listing
+    App->>Dom: create or reuse product and seller link
+    Dom->>Dom: normalize name and brand
+    Dom->>Infra: upsert Seller and Product
+    Infra-->>Dom: persisted rows
+    Dom->>Infra: link SellerProduct with seller raw values
+    Infra-->>Dom: linked or skipped
+    Dom-->>App: insertion result
+  end
+
+  App->>App: print summary
 ```
+For schema and upsert details, see [docs/architecture.md](docs/architecture.md).
 
-`samples/catalog.db` and `samples/seller-products.json` are the fixed inputs (read-only, never
-modified). Every run writes/updates `catalog-updated.db` at the project root.
+### Design decisions
 
----
+- **Match key:** `NormalizedProductName` + `NormalizedBrand` (category is stored, not used for matching)
+- **Normalization:** trim/collapse whitespace, lowercase, strip accents (NFD), normalize quotes; seller names uppercased
+- **Production safety:** existing products stay `AVAILABLE`; new imports enter as `PENDING`
+- **First-wins upsert:** `ON CONFLICT DO NOTHING`, then `SELECT` — keeps writes idempotent and safer under concurrent inserts (the unique index decides the winner; losers just read the existing row)
+- **Seller raw values:** original name, brand, and category kept on `SellerProduct` — enables later checks that the canonical product still matches what each seller expects, and opens the door to refining the catalog name from how multiple sellers describe the same item
+- **Idempotency:** unique constraints on normalized product keys and on seller–listing identity so reprocessing the same feed is safe
+- **SQL safety:** all runtime queries use `PreparedStatement` (no string concatenation)
 
-## How to run (Docker — recommended)
+### Test coverage
 
-### Step 1 — Build and run consolidation
+What we care about protecting:
 
-From the project root:
+- Same product despite whitespace, accents, quotes, or case differences; null brand treated as empty; category ignored for matching
+- Existing catalog products are reused instead of duplicated when a seller listing matches
+- Several sellers can link to one canonical product; reprocessing the same feed does not duplicate products or links
+- Schema migration can run twice without breaking
+- As an extra safeguard we also cover the `PENDING` / `AVAILABLE` behavior for new vs existing products
+
+### Future evolutions
+
+- **Matching:** name + brand catches formatting noise, but not true synonyms (`Router` vs `Roteador`) or variants that share a commercial identity. A synonym dictionary and stable identifiers (SKU, EAN/GTIN) would tighten deduplication and reduce false merges/splits as the catalog grows
+- **Activation:** we introduced `PENDING` for new imports as an optional safety net so they do not surface immediately in a live catalog; a later review step could promote them when ready for sale
+- **Scale:** one possible path to more throughput is to publish each seller listing to a message topic and let several consumers upsert the product/seller tables in parallel, while emitting events so other services can continue the path from intake to sellable (enrichment, review, activation, search indexing)
+- **Ops:** separate migrate vs import jobs, metrics on insert/skip rates
+
+## How to run
+
+### Consolidate the catalog
 
 ```bash
 docker compose up --build
 ```
 
-This single command:
+**Expect:** a console summary and **`catalog-updated.db`** at the project root. Later runs always reuse that same file; delete it if you want to start again from the original seed.
 
-1. Builds the application image (Maven + Java 17)
-2. Mounts `samples/catalog.db` and `samples/seller-products.json` read-only
-3. Mounts the project root read-write so `catalog-updated.db` appears on your host
-4. Runs **Stage 1** (schema migration) then **Stage 2** (catalog import)
-5. Exits when finished (batch job, not a long-running server)
-
-`catalog-updated.db` is created from the seed on the first run, and reused (accumulating changes) on
-every subsequent run — the seed itself is never touched.
-
-### Step 2 — Read the log output
-
-You should see output similar to:
-
-```
-Using working database: /output/catalog-updated.db
-Stage 1: Preparing database...
-Stage 1 completed.
-Stage 2: Importing catalog from /input/seller-products.json...
-Stage 2 completed.
-Summary:
-  Total processed: 269
-  Products inserted: 6
-  Seller links created: 268
-  Seller links skipped: 1
-```
-
-| Log field | Meaning |
-|-----------|---------|
-| `Total processed` | Number of entries read from `seller-products.json` |
-| `Products inserted` | New canonical products created as `PENDING` (no normalized match existed) |
-| `Seller links created` | New rows inserted into `SellerProduct` |
-| `Seller links skipped` | Duplicate seller + `SellerProductId` already linked (`INSERT OR IGNORE`) |
-
-**First run vs re-run:**
-
-- **First run** (no `catalog-updated.db` yet): most seller links are created; `Products inserted`
-  reflects genuinely new catalog items.
-- **Second run** (same `catalog-updated.db`, same input): `Products inserted` → `0`,
-  `Seller links created` → `0`, `Seller links skipped` → equals `Total processed` (full idempotency).
-
-### Step 3 — Inspect the database
-
-After the container exits, query `catalog-updated.db` at the project root:
-
-```bash
-docker run --rm -v "%cd%:/data" nouchka/sqlite3 /data/catalog-updated.db "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability;"
-```
-
-On Linux/macOS, replace `%cd%` with `$(pwd)`.
-
-**Expected result (first run on seed DB):**
-
-```
-AVAILABLE|975
-PENDING|6
-```
-
-More validation queries are listed in [Validation queries](#validation-queries) below.
-
-### Step 4 (optional) — Re-run from a clean seed
-
-`catalog-updated.db` accumulates changes across runs since it's reused each time. To start over from
-the untouched seed, just delete it before re-running:
-
-```bash
-rm catalog-updated.db   # PowerShell: Remove-Item catalog-updated.db
-docker compose up --build
-```
-
----
-
-## How to run (local — Java + Maven)
-
-```bash
-mvn package
-java -jar target/catalog-consolidation-1.0.0-SNAPSHOT.jar \
-  --db samples/catalog.db \
-  --input samples/seller-products.json \
-  --output catalog-updated.db
-```
-
-CLI flags (all optional, same defaults as Docker):
-
-| Flag | Default |
-|------|---------|
-| `--db` | `samples/catalog.db` |
-| `--input` | `samples/seller-products.json` |
-| `--output` | `catalog-updated.db` |
-
----
-
-## Running tests with Docker
-
-All tests (unit + integration) run inside Docker — no local Java 17 or Maven required.
-
-### Run the full test suite
+### Run tests
 
 ```bash
 docker build --target test -t catalog-consolidation-test .
 ```
 
-This builds the project and executes `mvn test`. A successful run ends with exit code `0`, but Maven
-runs in quiet mode (`-q`), so you mostly only see output on failure.
+Exit status `0` means success.
 
-### Run tests and see full live output
-
-If you want to see each test class and its result printed as it runs (without waiting for the full
-multi-stage image build), run Maven directly inside a throwaway container, mounting the project:
+For the full Maven output:
 
 ```bash
 docker run --rm -v "${PWD}:/app" -w /app maven:3.9-eclipse-temurin-17 mvn -B test
 ```
 
-On Windows PowerShell, `${PWD}` resolves automatically. On Linux/macOS, use `$(pwd)` instead.
-
-### What is covered
-
-| Test class | Type | What it verifies |
-|------------|------|------------------|
-| `ProductNormalizationServiceTest` | Unit | Normalization rules (whitespace, accents, quotes, brand null) |
-| `ProductFactoryTest` | Unit | Maps a JDBC `ResultSet` row into a `Product` domain model |
-| `SellerProductFactoryTest` | Unit | Maps the JSON DTO into the `SellerProduct` domain model |
-| `SchemaMigrationIT` | Integration | Stage 1 migration, backfill, idempotent re-run |
-| `CatalogIntegrationAppIT` | Integration | Upsert, inactive new products, multi-seller links, idempotency |
-
-### Run tests locally (if Maven is installed)
+Optional spot-check after consolidation:
 
 ```bash
-mvn test
+docker run --rm -v "${PWD}:/data" nouchka/sqlite3 /data/catalog-updated.db \
+  "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability;"
 ```
-
----
-
-## Validation queries
-
-Run these against `catalog-updated.db` (at the project root) after consolidation.
-
-### Product status breakdown
-
-```sql
-SELECT Availability, COUNT(*) AS total
-FROM Product
-GROUP BY Availability;
-```
-
-### Total seller links
-
-```sql
-SELECT COUNT(*) AS seller_product_links FROM SellerProduct;
-```
-
-### Seller snapshot preserved (canonical vs seller-original data)
-
-Shows products where the seller sent a different name or category than the canonical `Product` row:
-
-```sql
-SELECT p.Name, sp.SellerProductName, sp.SellerCategory, s.Name AS SellerName
-FROM Product p
-JOIN SellerProduct sp ON sp.ProductId = p.Id
-JOIN Seller s ON s.Id = sp.SellerId
-WHERE p.Name != sp.SellerProductName OR p.Category != sp.SellerCategory
-LIMIT 10;
-```
-
-### Products offered by multiple sellers
-
-```sql
-SELECT p.Name, p.Availability, COUNT(sp.Id) AS sellers
-FROM Product p
-JOIN SellerProduct sp ON sp.ProductId = p.Id
-GROUP BY p.Id
-HAVING sellers > 1;
-```
-
-### New inactive products from integration
-
-```sql
-SELECT Name, Brand, Category, Availability
-FROM Product
-WHERE Availability = 'PENDING';
-```
-
-### One-liner via Docker (copy-paste friendly)
-
-**Windows (PowerShell):**
-
-```powershell
-docker run --rm -v "${PWD}:/data" nouchka/sqlite3 /data/catalog-updated.db "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability; SELECT COUNT(*) FROM SellerProduct;"
-```
-
-**Linux / macOS:**
-
-```bash
-docker run --rm -v "$(pwd):/data" nouchka/sqlite3 /data/catalog-updated.db "SELECT Availability, COUNT(*) FROM Product GROUP BY Availability; SELECT COUNT(*) FROM SellerProduct;"
-```
-
----
-
-## Architecture
-
-See [docs/architecture.md](docs/architecture.md) for design decisions, hexagonal layout, migration details, and JDBC security conventions.
-
-## Key design decisions (summary)
-
-| Topic | Decision |
-|-------|----------|
-| Duplicate detection | `NormalizedProductName` + `NormalizedBrand` (category excluded) |
-| Production safety | Existing products → `AVAILABLE`; new imports → `PENDING` |
-| Upsert | `INSERT ON CONFLICT DO NOTHING` + `SELECT` via `insertIfNotExistsAndFetch` |
-| Seller data | `Seller` table + FK; original name/brand/category stored in `SellerProduct` snapshot columns |
-| SQL security | All runtime queries use `PreparedStatement` (no string concatenation) |
