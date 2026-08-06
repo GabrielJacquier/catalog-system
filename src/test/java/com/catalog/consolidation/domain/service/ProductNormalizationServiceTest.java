@@ -63,19 +63,31 @@ class ProductNormalizationServiceTest {
     }
 
     @Test
-    void shouldTrimCategoryWhitespaceWithoutChangingCase() {
+    void shouldNormalizeCategoryLikeNameAndBrand() {
         assertThat(productNormalizationService.normalizeCategory("  Electronics  "))
+                .isEqualTo("electronics");
+    }
+
+    @Test
+    void shouldTreatNullCategoryAsEmptyString() {
+        assertThat(productNormalizationService.normalizeCategory(null)).isEmpty();
+    }
+
+    @Test
+    void shouldTreatBlankCategoryAsEmptyString() {
+        assertThat(productNormalizationService.normalizeCategory("   ")).isEmpty();
+    }
+
+    @Test
+    void shouldTrimDisplayCategoryWithoutChangingCase() {
+        assertThat(productNormalizationService.displayCategory("  Electronics  "))
                 .isEqualTo("Electronics");
     }
 
     @Test
-    void shouldReturnNullForNullCategory() {
-        assertThat(productNormalizationService.normalizeCategory(null)).isNull();
-    }
-
-    @Test
-    void shouldReturnNullForBlankCategory() {
-        assertThat(productNormalizationService.normalizeCategory("   ")).isNull();
+    void shouldReturnNullDisplayCategoryForNullOrBlank() {
+        assertThat(productNormalizationService.displayCategory(null)).isNull();
+        assertThat(productNormalizationService.displayCategory("   ")).isNull();
     }
 
     @Test
@@ -90,29 +102,15 @@ class ProductNormalizationServiceTest {
     }
 
     @Test
-    void shouldProduceSameNormalizedPairForDifferentCategories() {
-        String name = "MacBook Air  M2";
-        String brand = "Apple";
-
-        String normalizedName = productNormalizationService.normalizeProductName(name);
-        String normalizedBrand = productNormalizationService.normalizeBrand(brand);
-
-        assertThat(normalizedName).isEqualTo("macbook air m2");
-        assertThat(normalizedBrand).isEqualTo("apple");
-    }
-
-    @Test
-    void shouldDetectSameProductByNormalizedFields() {
-        Product first = new Product(
+    void shouldDetectSameProductByNormalizedFieldsIncludingCategory() {
+        Product first = product(
                 "Smartphone Galaxy S23", "Samsung", "Electronics",
-                productNormalizationService.normalizeProductName("Smartphone Galaxy S23"),
-                productNormalizationService.normalizeBrand("Samsung"),
+                "smartphone galaxy s23", "samsung", "electronics",
                 Availability.AVAILABLE
         );
-        Product second = new Product(
-                "Smartphone  Galaxy S23", "Samsung", "Phones",
-                productNormalizationService.normalizeProductName("Smartphone  Galaxy S23"),
-                productNormalizationService.normalizeBrand("Samsung"),
+        Product second = product(
+                "Smartphone  Galaxy S23", "Samsung", " electronics ",
+                "smartphone galaxy s23", "samsung", "electronics",
                 Availability.PENDING
         );
 
@@ -120,17 +118,31 @@ class ProductNormalizationServiceTest {
     }
 
     @Test
-    void shouldDetectDifferentProductsByNormalizedFields() {
-        Product first = new Product(
+    void shouldDetectDifferentProductsWhenCategoryDiffers() {
+        Product first = product(
                 "Smartphone Galaxy S23", "Samsung", "Electronics",
-                productNormalizationService.normalizeProductName("Smartphone Galaxy S23"),
-                productNormalizationService.normalizeBrand("Samsung"),
+                "smartphone galaxy s23", "samsung", "electronics",
                 Availability.AVAILABLE
         );
-        Product second = new Product(
+        Product second = product(
+                "Smartphone Galaxy S23", "Samsung", "Phones",
+                "smartphone galaxy s23", "samsung", "phones",
+                Availability.PENDING
+        );
+
+        assertThat(productNormalizationService.isSameProduct(first, second)).isFalse();
+    }
+
+    @Test
+    void shouldDetectDifferentProductsByNormalizedFields() {
+        Product first = product(
+                "Smartphone Galaxy S23", "Samsung", "Electronics",
+                "smartphone galaxy s23", "samsung", "electronics",
+                Availability.AVAILABLE
+        );
+        Product second = product(
                 "Smartphone Galaxy S24", "Samsung", "Electronics",
-                productNormalizationService.normalizeProductName("Smartphone Galaxy S24"),
-                productNormalizationService.normalizeBrand("Samsung"),
+                "smartphone galaxy s24", "samsung", "electronics",
                 Availability.PENDING
         );
 
@@ -141,24 +153,44 @@ class ProductNormalizationServiceTest {
     void shouldTreatBlankBrandAsEmptyAndDistinctBrandsAsDifferentProducts() {
         assertThat(productNormalizationService.normalizeBrand("   ")).isEmpty();
 
-        Product samsung = new Product(
+        Product samsung = product(
                 "Galaxy S23", "Samsung", "Electronics",
-                productNormalizationService.normalizeProductName("Galaxy S23"),
-                productNormalizationService.normalizeBrand("Samsung"),
+                "galaxy s23", "samsung", "electronics",
                 Availability.AVAILABLE
         );
-        Product apple = new Product(
+        Product apple = product(
                 "Galaxy S23", "Apple", "Electronics",
-                productNormalizationService.normalizeProductName("Galaxy S23"),
-                productNormalizationService.normalizeBrand("Apple"),
+                "galaxy s23", "apple", "electronics",
                 Availability.PENDING
         );
         assertThat(productNormalizationService.isSameProduct(samsung, apple)).isFalse();
     }
 
     @Test
+    void shouldTreatNullCategoriesAsSameWhenNameAndBrandMatch() {
+        Product first = product(
+                "Generic Widget", null, null,
+                "generic widget", "", "",
+                Availability.AVAILABLE
+        );
+        Product second = product(
+                "Generic  Widget", null, null,
+                "generic widget", "", "",
+                Availability.PENDING
+        );
+
+        assertThat(productNormalizationService.isSameProduct(first, second)).isTrue();
+    }
+
+    @Test
     void shouldKeepTrademarkAndAmpersandCharactersWhenNormalizingProductName() {
         assertThat(productNormalizationService.normalizeProductName("Router® Wi-Fi & Mesh"))
                 .isEqualTo("router® wi-fi & mesh");
+    }
+
+    private static Product product(String name, String brand, String category,
+                                   String normalizedName, String normalizedBrand, String normalizedCategory,
+                                   Availability availability) {
+        return new Product(name, brand, category, normalizedName, normalizedBrand, normalizedCategory, availability);
     }
 }

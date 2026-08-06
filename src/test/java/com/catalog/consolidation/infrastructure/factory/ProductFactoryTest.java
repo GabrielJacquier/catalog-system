@@ -36,12 +36,13 @@ class ProductFactoryTest {
                         Category TEXT,
                         NormalizedProductName TEXT,
                         NormalizedBrand TEXT,
+                        NormalizedCategory TEXT,
                         Availability TEXT
                     )
                     """);
             statement.execute("""
-                    INSERT INTO Product (Name, Brand, Category, NormalizedProductName, NormalizedBrand, Availability)
-                    VALUES ('Smartphone Galaxy S23', 'Samsung', 'Electronics', 'smartphone galaxy s23', 'samsung', 'AVAILABLE')
+                    INSERT INTO Product (Name, Brand, Category, NormalizedProductName, NormalizedBrand, NormalizedCategory, Availability)
+                    VALUES ('Smartphone Galaxy S23', 'Samsung', 'Electronics', 'smartphone galaxy s23', 'samsung', 'electronics', 'AVAILABLE')
                     """);
 
             try (ResultSet resultSet = statement.executeQuery("SELECT * FROM Product")) {
@@ -53,6 +54,7 @@ class ProductFactoryTest {
                 assertThat(product.getCategory()).isEqualTo("Electronics");
                 assertThat(product.getNormalizedProductName()).isEqualTo("smartphone galaxy s23");
                 assertThat(product.getNormalizedBrand()).isEqualTo("samsung");
+                assertThat(product.getNormalizedCategory()).isEqualTo("electronics");
                 assertThat(product.getAvailability()).isEqualTo(Availability.AVAILABLE);
             }
         }
@@ -73,6 +75,7 @@ class ProductFactoryTest {
                         Category TEXT,
                         NormalizedProductName TEXT,
                         NormalizedBrand TEXT,
+                        NormalizedCategory TEXT,
                         Availability TEXT
                     )
                     """);

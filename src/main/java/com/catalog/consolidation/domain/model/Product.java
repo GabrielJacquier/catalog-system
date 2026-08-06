@@ -8,6 +8,7 @@ public class Product {
     private String category;
     private String normalizedProductName;
     private String normalizedBrand;
+    private String normalizedCategory;
     private Availability availability;
 
     public Product() {
@@ -15,12 +16,13 @@ public class Product {
 
     public Product(String name, String brand, String category,
                    String normalizedProductName, String normalizedBrand,
-                   Availability availability) {
+                   String normalizedCategory, Availability availability) {
         this.name = name;
         this.brand = brand;
         this.category = category;
         this.normalizedProductName = normalizedProductName;
         this.normalizedBrand = normalizedBrand;
+        this.normalizedCategory = normalizedCategory;
         this.availability = availability;
     }
 
@@ -70,6 +72,14 @@ public class Product {
 
     public void setNormalizedBrand(String normalizedBrand) {
         this.normalizedBrand = normalizedBrand;
+    }
+
+    public String getNormalizedCategory() {
+        return normalizedCategory;
+    }
+
+    public void setNormalizedCategory(String normalizedCategory) {
+        this.normalizedCategory = normalizedCategory;
     }
 
     public Availability getAvailability() {

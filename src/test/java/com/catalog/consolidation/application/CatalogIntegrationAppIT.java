@@ -123,7 +123,7 @@ class CatalogIntegrationAppIT {
                 "seller-a", "StoreA", "Smartphone  Galaxy S23", "Samsung", "Electronics"
         );
         SellerProduct second = createSellerProduct(
-                "seller-b", "StoreB", "Smartphone Galaxy S23", "Samsung", "Phones"
+                "seller-b", "StoreB", "Smartphone Galaxy S23", "Samsung", "Electronics"
         );
 
         catalogIntegrationApp.processProducts(List.of(first, second));
@@ -136,6 +136,29 @@ class CatalogIntegrationAppIT {
             products.next();
             sellerProducts.next();
             assertThat(products.getInt("total")).isEqualTo(1);
+            assertThat(sellerProducts.getInt("total")).isEqualTo(2);
+        }
+    }
+
+    @Test
+    void shouldCreateDistinctProductsWhenCategoryDiffers() throws Exception {
+        SellerProduct first = createSellerProduct(
+                "cat-a", "StoreA", "Smartphone Galaxy S23", "Samsung", "Electronics"
+        );
+        SellerProduct second = createSellerProduct(
+                "cat-b", "StoreB", "Smartphone Galaxy S23", "Samsung", "Phones"
+        );
+
+        catalogIntegrationApp.processProducts(List.of(first, second));
+
+        try (Connection connection = databaseConfig.getConnection();
+             Statement productsStatement = connection.createStatement();
+             Statement sellerProductsStatement = connection.createStatement();
+             ResultSet products = productsStatement.executeQuery("SELECT COUNT(*) AS total FROM Product");
+             ResultSet sellerProducts = sellerProductsStatement.executeQuery("SELECT COUNT(*) AS total FROM SellerProduct")) {
+            products.next();
+            sellerProducts.next();
+            assertThat(products.getInt("total")).isEqualTo(2);
             assertThat(sellerProducts.getInt("total")).isEqualTo(2);
         }
     }
@@ -157,7 +180,7 @@ class CatalogIntegrationAppIT {
     @Test
     void shouldKeepCanonicalFirstWinsAndStoreSellerSnapshotOnMatch() throws Exception {
         SellerProduct listing = createSellerProduct(
-                "snap-1", "MegaStore", "Smartphone  Galaxy S23", "SAMSUNG", "Phones"
+                "snap-1", "MegaStore", "Smartphone  Galaxy S23", "SAMSUNG", " electronics "
         );
 
         CatalogIntegrationResult result = catalogIntegrationApp.processProducts(List.of(listing));
@@ -186,7 +209,7 @@ class CatalogIntegrationAppIT {
             assertThat(sellerProduct.next()).isTrue();
             assertThat(sellerProduct.getString("SellerProductName")).isEqualTo("Smartphone  Galaxy S23");
             assertThat(sellerProduct.getString("SellerBrand")).isEqualTo("SAMSUNG");
-            assertThat(sellerProduct.getString("SellerCategory")).isEqualTo("Phones");
+            assertThat(sellerProduct.getString("SellerCategory")).isEqualTo(" electronics ");
             assertThat(sellerProduct.next()).isFalse();
         }
     }
@@ -234,7 +257,7 @@ class CatalogIntegrationAppIT {
     void shouldMergeListingsWithNullBrandWhenNormalizedNamesMatch() throws Exception {
         catalogIntegrationApp.processProducts(List.of(
                 createSellerProduct("null-brand-a", "StoreA", "Generic Widget", null, "Tools"),
-                createSellerProduct("null-brand-b", "StoreB", "Generic  Widget", null, "Hardware")
+                createSellerProduct("null-brand-b", "StoreB", "Generic  Widget", null, "Tools")
         ));
 
         try (Connection connection = databaseConfig.getConnection();
@@ -243,7 +266,35 @@ class CatalogIntegrationAppIT {
              ResultSet products = productsStatement.executeQuery("""
                      SELECT COUNT(*) AS total
                      FROM Product
-                     WHERE NormalizedProductName = 'generic widget' AND NormalizedBrand = ''
+                     WHERE NormalizedProductName = 'generic widget'
+                       AND NormalizedBrand = ''
+                       AND NormalizedCategory = 'tools'
+                     """);
+             ResultSet links = linksStatement.executeQuery(
+                     "SELECT COUNT(*) AS total FROM SellerProduct")) {
+            products.next();
+            links.next();
+            assertThat(products.getInt("total")).isEqualTo(1);
+            assertThat(links.getInt("total")).isEqualTo(2);
+        }
+    }
+
+    @Test
+    void shouldMergeListingsWithNullCategoryWhenNameAndBrandMatch() throws Exception {
+        catalogIntegrationApp.processProducts(List.of(
+                createSellerProduct("null-cat-a", "StoreA", "Generic Widget", "Acme", null),
+                createSellerProduct("null-cat-b", "StoreB", "Generic  Widget", "Acme", null)
+        ));
+
+        try (Connection connection = databaseConfig.getConnection();
+             Statement productsStatement = connection.createStatement();
+             Statement linksStatement = connection.createStatement();
+             ResultSet products = productsStatement.executeQuery("""
+                     SELECT COUNT(*) AS total
+                     FROM Product
+                     WHERE NormalizedProductName = 'generic widget'
+                       AND NormalizedBrand = 'acme'
+                       AND NormalizedCategory = ''
                      """);
              ResultSet links = linksStatement.executeQuery(
                      "SELECT COUNT(*) AS total FROM SellerProduct")) {

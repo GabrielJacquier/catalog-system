@@ -17,6 +17,10 @@ public class ProductNormalizationService {
     }
 
     public String normalizeCategory(String category) {
+        return normalize(category);
+    }
+
+    public String displayCategory(String category) {
         if (category == null) {
             return null;
         }
@@ -33,7 +37,8 @@ public class ProductNormalizationService {
 
     public boolean isSameProduct(Product first, Product second) {
         return Objects.equals(first.getNormalizedProductName(), second.getNormalizedProductName())
-                && Objects.equals(first.getNormalizedBrand(), second.getNormalizedBrand());
+                && Objects.equals(first.getNormalizedBrand(), second.getNormalizedBrand())
+                && Objects.equals(first.getNormalizedCategory(), second.getNormalizedCategory());
     }
 
     private String normalize(String value) {

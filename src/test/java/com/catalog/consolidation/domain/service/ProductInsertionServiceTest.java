@@ -50,7 +50,7 @@ class ProductInsertionServiceTest {
     void shouldInsertNewProductThenSkipDuplicateLinkAndReuseMatchForAnotherSeller() {
         Seller megaStore = seller(1L, "MegaStore", "MEGASTORE");
         Seller otherStore = seller(2L, "OtherStore", "OTHERSTORE");
-        Product canonical = product(10L, "Good Product", "Acme", "Gadgets", "good product", "acme");
+        Product canonical = product(10L, "Good Product", "Acme", "Gadgets", "good product", "acme", "gadgets");
 
         when(sellerRepository.insertIfNotExistsAndFetch(any(Seller.class)))
                 .thenReturn(megaStore, megaStore, otherStore);
@@ -80,7 +80,7 @@ class ProductInsertionServiceTest {
         assertThat(skippedLink.product().getId()).isEqualTo(10L);
 
         ProductInsertionResult matched = productInsertionService.insert(
-                sellerProduct("id-2", "OtherStore", "Good  Product", "Acme", "Other")
+                sellerProduct("id-2", "OtherStore", "Good  Product", "Acme", "Gadgets")
         );
         assertThat(matched.failed()).isFalse();
         assertThat(matched.inserted()).isFalse();
@@ -137,8 +137,10 @@ class ProductInsertionServiceTest {
     }
 
     private static Product product(long id, String name, String brand, String category,
-                                   String normalizedName, String normalizedBrand) {
-        Product product = new Product(name, brand, category, normalizedName, normalizedBrand, Availability.PENDING);
+                                   String normalizedName, String normalizedBrand, String normalizedCategory) {
+        Product product = new Product(
+                name, brand, category, normalizedName, normalizedBrand, normalizedCategory, Availability.PENDING
+        );
         product.setId(id);
         return product;
     }
