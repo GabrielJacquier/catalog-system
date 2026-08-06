@@ -28,7 +28,8 @@ public class SqliteProductRepository implements ProductRepository {
             Product persisted = fetchByNormalizedKeys(
                     connection,
                     product.getNormalizedProductName(),
-                    product.getNormalizedBrand()
+                    product.getNormalizedBrand(),
+                    product.getNormalizedCategory()
             );
             return new ProductInsertionResult(persisted, insertedRows > 0, false);
         } catch (SQLException ex) {
@@ -38,9 +39,9 @@ public class SqliteProductRepository implements ProductRepository {
 
     private int insertProduct(Connection connection, Product product) throws SQLException {
         String sql = """
-                INSERT INTO Product (Name, Brand, Category, NormalizedProductName, NormalizedBrand, Availability)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(NormalizedProductName, NormalizedBrand) DO NOTHING
+                INSERT INTO Product (Name, Brand, Category, NormalizedProductName, NormalizedBrand, NormalizedCategory, Availability)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(NormalizedProductName, NormalizedBrand, NormalizedCategory) DO NOTHING
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, product.getName());
@@ -48,22 +49,25 @@ public class SqliteProductRepository implements ProductRepository {
             statement.setString(3, product.getCategory());
             statement.setString(4, product.getNormalizedProductName());
             statement.setString(5, product.getNormalizedBrand());
-            statement.setString(6, product.getAvailability().name());
+            statement.setString(6, product.getNormalizedCategory());
+            statement.setString(7, product.getAvailability().name());
             return statement.executeUpdate();
         }
     }
 
     private Product fetchByNormalizedKeys(Connection connection,
                                           String normalizedProductName,
-                                          String normalizedBrand) throws SQLException {
+                                          String normalizedBrand,
+                                          String normalizedCategory) throws SQLException {
         String sql = """
-                SELECT Id, Name, Brand, Category, NormalizedProductName, NormalizedBrand, Availability
+                SELECT Id, Name, Brand, Category, NormalizedProductName, NormalizedBrand, NormalizedCategory, Availability
                 FROM Product
-                WHERE NormalizedProductName = ? AND NormalizedBrand = ?
+                WHERE NormalizedProductName = ? AND NormalizedBrand = ? AND NormalizedCategory = ?
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, normalizedProductName);
             statement.setString(2, normalizedBrand);
+            statement.setString(3, normalizedCategory);
             try (ResultSet resultSet = statement.executeQuery()) {
                 return productFactory.create(resultSet);
             }

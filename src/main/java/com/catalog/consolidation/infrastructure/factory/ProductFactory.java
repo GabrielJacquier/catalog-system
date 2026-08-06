@@ -20,6 +20,7 @@ public class ProductFactory {
         product.setCategory(resultSet.getString("Category"));
         product.setNormalizedProductName(resultSet.getString("NormalizedProductName"));
         product.setNormalizedBrand(resultSet.getString("NormalizedBrand"));
+        product.setNormalizedCategory(resultSet.getString("NormalizedCategory"));
         product.setAvailability(Availability.valueOf(resultSet.getString("Availability")));
         return product;
     }

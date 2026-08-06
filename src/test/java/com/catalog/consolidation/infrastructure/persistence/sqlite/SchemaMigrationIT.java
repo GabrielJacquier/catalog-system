@@ -31,13 +31,15 @@ class SchemaMigrationIT {
             assertThat(columnExists(connection, "Product", "Availability")).isTrue();
             assertThat(columnExists(connection, "Product", "NormalizedProductName")).isTrue();
             assertThat(columnExists(connection, "Product", "NormalizedBrand")).isTrue();
+            assertThat(columnExists(connection, "Product", "NormalizedCategory")).isTrue();
 
             try (ResultSet products = statement.executeQuery(
-                    "SELECT Availability, NormalizedProductName, NormalizedBrand FROM Product")) {
+                    "SELECT Availability, NormalizedProductName, NormalizedBrand, NormalizedCategory FROM Product")) {
                 assertThat(products.next()).isTrue();
                 assertThat(products.getString("Availability")).isEqualTo("AVAILABLE");
                 assertThat(products.getString("NormalizedProductName")).isEqualTo("smartphone galaxy s23");
                 assertThat(products.getString("NormalizedBrand")).isEqualTo("samsung");
+                assertThat(products.getString("NormalizedCategory")).isEqualTo("electronics");
                 assertThat(products.next()).isFalse();
             }
 

@@ -66,7 +66,8 @@ public class ProductInsertionService {
     private Product buildProduct(SellerProduct sellerProduct) {
         String normalizedProductName = productNormalizationService.normalizeProductName(sellerProduct.sellerProductName());
         String normalizedBrand = productNormalizationService.normalizeBrand(sellerProduct.sellerBrand());
-        String category = productNormalizationService.normalizeCategory(sellerProduct.sellerCategory());
+        String category = productNormalizationService.displayCategory(sellerProduct.sellerCategory());
+        String normalizedCategory = productNormalizationService.normalizeCategory(sellerProduct.sellerCategory());
 
         return new Product(
                 sellerProduct.sellerProductName(),
@@ -74,6 +75,7 @@ public class ProductInsertionService {
                 category,
                 normalizedProductName,
                 normalizedBrand,
+                normalizedCategory,
                 Availability.PENDING
         );
     }

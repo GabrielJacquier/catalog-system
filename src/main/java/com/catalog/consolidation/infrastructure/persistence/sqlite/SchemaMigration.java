@@ -52,11 +52,12 @@ public class SchemaMigration {
         addColumnIfMissing(connection, "Product", "Availability", "TEXT DEFAULT 'AVAILABLE'");
         addColumnIfMissing(connection, "Product", "NormalizedProductName", "TEXT");
         addColumnIfMissing(connection, "Product", "NormalizedBrand", "TEXT");
+        addColumnIfMissing(connection, "Product", "NormalizedCategory", "TEXT");
 
         try (Statement statement = connection.createStatement()) {
             statement.execute("""
                     CREATE UNIQUE INDEX IF NOT EXISTS idx_product_normalized
-                    ON Product(NormalizedProductName, NormalizedBrand)
+                    ON Product(NormalizedProductName, NormalizedBrand, NormalizedCategory)
                     """);
         }
 
@@ -69,7 +70,7 @@ public class SchemaMigration {
 
         String updateSql = """
                 UPDATE Product
-                SET Availability = ?, NormalizedProductName = ?, NormalizedBrand = ?
+                SET Availability = ?, NormalizedProductName = ?, NormalizedBrand = ?, NormalizedCategory = ?
                 WHERE Id = ?
                 """;
         try (PreparedStatement statement = connection.prepareStatement(updateSql)) {
@@ -77,14 +78,15 @@ public class SchemaMigration {
                 statement.setString(1, Availability.AVAILABLE.name());
                 statement.setString(2, productNormalizationService.normalizeProductName(row.name()));
                 statement.setString(3, productNormalizationService.normalizeBrand(row.brand()));
-                statement.setLong(4, row.id());
+                statement.setString(4, productNormalizationService.normalizeCategory(row.category()));
+                statement.setLong(5, row.id());
                 statement.executeUpdate();
             }
         }
     }
 
     private List<ProductRow> loadAllProducts(Connection connection) throws SQLException {
-        String selectSql = "SELECT Id, Name, Brand FROM Product";
+        String selectSql = "SELECT Id, Name, Brand, Category FROM Product";
         List<ProductRow> rows = new ArrayList<>();
         try (Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery(selectSql)) {
@@ -92,7 +94,8 @@ public class SchemaMigration {
                 rows.add(new ProductRow(
                         resultSet.getLong("Id"),
                         resultSet.getString("Name"),
-                        resultSet.getString("Brand")
+                        resultSet.getString("Brand"),
+                        resultSet.getString("Category")
                 ));
             }
         }
@@ -152,6 +155,6 @@ public class SchemaMigration {
         }
     }
 
-    private record ProductRow(long id, String name, String brand) {
+    private record ProductRow(long id, String name, String brand, String category) {
     }
 }
